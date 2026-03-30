@@ -20,6 +20,7 @@ describe('agent/types', () => {
     });
 
     it('应该定义 TemplateType 模板类型枚举', () => {
+      expect(TemplateType.FOUNDER).toBe('founder');
       expect(TemplateType.PROGRAMMER).toBe('programmer');
       expect(TemplateType.WRITER).toBe('writer');
       expect(TemplateType.VLOG_CREATOR).toBe('vlog-creator');

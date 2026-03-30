@@ -21,6 +21,7 @@ export enum AgentStatus {
  * 模板类型
  */
 export enum TemplateType {
+  FOUNDER = 'founder',
   PROGRAMMER = 'programmer',
   WRITER = 'writer',
   VLOG_CREATOR = 'vlog-creator',

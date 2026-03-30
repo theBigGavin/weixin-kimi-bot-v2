@@ -11,6 +11,18 @@ import {
 
 describe('templates/definitions', () => {
   describe('BUILTIN_TEMPLATES', () => {
+    it('应该包含founder模板', () => {
+      const template = BUILTIN_TEMPLATES.find(t => t.id === 'founder');
+      expect(template).toBeDefined();
+      expect(template?.name).toBe('创始Agent');
+      expect(template?.tools.codeExecution).toBe(true);
+      expect(template?.tools.gitOperations).toBe(true);
+      expect(template?.tools.fileOperations).toBe(true);
+      expect(template?.tools.webSearch).toBe(true);
+      expect(template?.defaults.maxTurns).toBe(50);
+      expect(template?.systemPrompt).toContain('自我迭代');
+    });
+
     it('应该包含programmer模板', () => {
       const template = BUILTIN_TEMPLATES.find(t => t.id === 'programmer');
       expect(template).toBeDefined();
