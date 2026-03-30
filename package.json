@@ -1,0 +1,27 @@
+{
+  "name": "weixin-kimi-bot",
+  "version": "1.0.0",
+  "description": "基于 TDD 方法重新开发的微信智能助手系统",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "dev": "tsx src/index.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": ["weixin", "kimi", "bot", "ai", "assistant"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {}
+}
