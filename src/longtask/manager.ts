@@ -73,9 +73,10 @@ export class LongTaskManager {
     const task = this.tasks.get(taskId);
     if (!task || task.status === LongTaskStatus.COMPLETED) return null;
 
+    const wasRunning = task.status === LongTaskStatus.RUNNING;
     task.status = LongTaskStatus.CANCELLED;
     task.completedAt = Date.now();
-    if (task.status === LongTaskStatus.RUNNING) {
+    if (wasRunning) {
       this.runningCount--;
     }
     return task;
