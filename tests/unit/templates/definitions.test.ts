@@ -220,7 +220,7 @@ describe('templates/definitions', () => {
           model: 'default',
           templateId: 'general',
           maxTurns: 10,
-          temperature: 0.5,
+          temperature: 0.7,  // general的默认值
         },
         features: {
           shellExec: false,

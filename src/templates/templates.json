@@ -1,0 +1,210 @@
+{
+  "templates": [
+    {
+      "id": "founder",
+      "name": "创始Agent",
+      "description": "项目创始人和代码维护者，具备全面的项目管理和代码迭代能力",
+      "icon": "👑",
+      "promptFile": "founder.md",
+      "welcomeMessage": "你好！我是创始Agent，你的项目代码维护者。让我们一起构建和维护卓越的软件。",
+      "suggestions": [
+        "帮我重构这个模块",
+        "设计一个新的功能架构",
+        "审查最近的代码提交",
+        "优化项目构建流程",
+        "生成项目文档"
+      ],
+      "defaults": {
+        "model": "kimi-code",
+        "maxTurns": 50,
+        "temperature": 0.3
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": true,
+        "webSearch": true,
+        "gitOperations": true
+      },
+      "behavior": {
+        "proactive": true,
+        "verbose": true,
+        "confirmDestructive": true
+      }
+    },
+    {
+      "id": "general",
+      "name": "通用助手",
+      "description": "适用于各种日常任务的通用AI助手",
+      "icon": "🤖",
+      "promptFile": "general.md",
+      "welcomeMessage": "你好！我是你的通用助手，有什么可以帮你的吗？",
+      "suggestions": [
+        "帮我写一封邮件",
+        "解释一下量子计算",
+        "给我一些旅行建议"
+      ],
+      "defaults": {
+        "model": "kimi",
+        "maxTurns": 20,
+        "temperature": 0.7
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": false,
+        "webSearch": true,
+        "gitOperations": false
+      },
+      "behavior": {
+        "proactive": true,
+        "verbose": false,
+        "confirmDestructive": true
+      }
+    },
+    {
+      "id": "programmer",
+      "name": "程序员助手",
+      "description": "专注于编程和技术开发的AI助手",
+      "icon": "💻",
+      "promptFile": "programmer.md",
+      "welcomeMessage": "你好开发者！我是你的编程助手，让我们一起写出优秀的代码吧！",
+      "suggestions": [
+        "帮我优化这段代码",
+        "解释快速排序算法",
+        "生成一个REST API",
+        "排查这个bug"
+      ],
+      "defaults": {
+        "model": "kimi-code",
+        "maxTurns": 30,
+        "temperature": 0.3
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": true,
+        "webSearch": true,
+        "gitOperations": true
+      },
+      "behavior": {
+        "proactive": true,
+        "verbose": true,
+        "confirmDestructive": true
+      }
+    },
+    {
+      "id": "writer",
+      "name": "写作助手",
+      "description": "专注于内容创作和写作的AI助手",
+      "icon": "✍️",
+      "promptFile": "writer.md",
+      "welcomeMessage": "你好！我是你的写作助手，让我们一起创作精彩内容吧！",
+      "suggestions": [
+        "帮我构思一个故事大纲",
+        "润色这段文字",
+        "写一份产品说明书"
+      ],
+      "defaults": {
+        "model": "kimi",
+        "maxTurns": 25,
+        "temperature": 0.8
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": false,
+        "webSearch": true,
+        "gitOperations": false
+      },
+      "behavior": {
+        "proactive": true,
+        "verbose": false,
+        "confirmDestructive": false
+      }
+    },
+    {
+      "id": "vlog-creator",
+      "name": "视频创作者",
+      "description": "专注于视频内容创作的AI助手",
+      "icon": "🎬",
+      "promptFile": "vlog-creator.md",
+      "welcomeMessage": "嗨创作者！让我们一起打造精彩的视频内容吧！",
+      "suggestions": [
+        "帮我写一个视频脚本",
+        "设计这个视频的转场",
+        "给这个视频起个吸引人的标题"
+      ],
+      "defaults": {
+        "model": "kimi",
+        "maxTurns": 25,
+        "temperature": 0.85
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": false,
+        "webSearch": true,
+        "gitOperations": false
+      },
+      "behavior": {
+        "proactive": true,
+        "verbose": false,
+        "confirmDestructive": false
+      }
+    },
+    {
+      "id": "crypto-trader",
+      "name": "加密货币交易员",
+      "description": "专注于加密货币交易的AI助手",
+      "icon": "₿",
+      "promptFile": "crypto-trader.md",
+      "welcomeMessage": "欢迎！我是你的加密货币交易助手。请记住：投资有风险，决策需谨慎！",
+      "suggestions": [
+        "分析BTC当前走势",
+        "解释MACD指标",
+        "评估我的投资组合"
+      ],
+      "defaults": {
+        "model": "kimi",
+        "maxTurns": 20,
+        "temperature": 0.4
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": false,
+        "webSearch": true,
+        "gitOperations": false
+      },
+      "behavior": {
+        "proactive": false,
+        "verbose": true,
+        "confirmDestructive": true
+      }
+    },
+    {
+      "id": "a-stock-trader",
+      "name": "A股交易员",
+      "description": "专注于A股市场的AI助手",
+      "icon": "📈",
+      "promptFile": "a-stock-trader.md",
+      "welcomeMessage": "您好！我是您的A股投资助手。股市有风险，投资需谨慎！",
+      "suggestions": [
+        "分析今天的大盘走势",
+        "解读这只股票的财报",
+        "这个板块前景如何？"
+      ],
+      "defaults": {
+        "model": "kimi",
+        "maxTurns": 20,
+        "temperature": 0.4
+      },
+      "tools": {
+        "fileOperations": true,
+        "codeExecution": false,
+        "webSearch": true,
+        "gitOperations": false
+      },
+      "behavior": {
+        "proactive": false,
+        "verbose": true,
+        "confirmDestructive": true
+      }
+    }
+  ]
+}
