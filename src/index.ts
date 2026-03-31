@@ -155,7 +155,12 @@ async function handleMessage(
     // Get real agent config from storage
     const agent = await getAgent(agentId, fromUser);
     
-    const result = await commandHandler.execute(text, agent);
+    // 定义进度回调函数，用于长耗时命令的实时反馈
+    const progressCallback = async (progressMsg: string) => {
+      await client.sendText(fromUser, progressMsg, contextToken);
+    };
+    
+    const result = await commandHandler.execute(text, agent, progressCallback);
     await client.sendText(fromUser, result.response, contextToken);
     console.log(`[${agentId}] ✅ 命令执行完成: ${result.type}`);
     return;

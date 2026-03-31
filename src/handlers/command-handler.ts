@@ -30,6 +30,12 @@ export interface CommandResult {
   error?: string;
 }
 
+/**
+ * 进度回调函数类型
+ * 用于长耗时命令的进度通知
+ */
+export type ProgressCallback = (message: string) => Promise<void>;
+
 export interface CommandInfo {
   name: string;
   description: string;
@@ -89,7 +95,11 @@ export class CommandHandler {
   /**
    * Execute a command
    */
-  async execute(message: string, agent: Agent): Promise<CommandResult> {
+  async execute(
+    message: string, 
+    agent: Agent, 
+    onProgress?: ProgressCallback
+  ): Promise<CommandResult> {
     const parsed = parseCommand(message);
     
     if (!parsed) {
@@ -121,7 +131,7 @@ export class CommandHandler {
       case 'test':
         return this.handleTest(agent);
       case 'onboard':
-        return await this.handleOnboard(agent);
+        return await this.handleOnboard(agent, onProgress);
       default:
         return {
           type: CommandType.UNKNOWN,
@@ -255,8 +265,12 @@ export class CommandHandler {
   /**
    * 创始者Agent项目初始化：读取项目关键文件
    * 让Agent了解项目结构、架构和业务逻辑
+   * 支持进度回调，实时反馈加载进度
    */
-  private async handleOnboard(agent: Agent): Promise<CommandResult> {
+  private async handleOnboard(
+    agent: Agent, 
+    onProgress?: ProgressCallback
+  ): Promise<CommandResult> {
     // 只建议创始者模板使用
     if (agent.ai.templateId !== 'founder') {
       return {
@@ -271,32 +285,72 @@ export class CommandHandler {
       
       // 定义要读取的关键文件
       const filesToRead = [
-        { path: 'README.md', desc: '项目概览' },
-        { path: 'AGENTS.md', desc: '项目指南' },
-        { path: 'package.json', desc: '依赖配置' },
-        { path: 'tsconfig.json', desc: 'TypeScript配置' },
-        { path: 'docs/architecture/architecture-overview.md', desc: '架构文档' },
-        { path: 'docs/architecture/TDD_REDVELOPMENT_GUIDE.md', desc: '开发指南' },
+        { path: 'README.md', desc: '项目概览', priority: 'high' },
+        { path: 'AGENTS.md', desc: '项目指南', priority: 'high' },
+        { path: 'package.json', desc: '依赖配置', priority: 'medium' },
+        { path: 'tsconfig.json', desc: 'TypeScript配置', priority: 'medium' },
+        { path: 'docs/architecture/architecture-overview.md', desc: '架构文档', priority: 'high' },
+        { path: 'docs/architecture/TDD_REDVELOPMENT_GUIDE.md', desc: '开发指南', priority: 'high' },
       ];
+
+      // 发送初始进度通知
+      if (onProgress) {
+        await onProgress(
+          `🚀 开始项目初始化\n` +
+          `Agent: ${agent.name}\n` +
+          `共需学习 ${filesToRead.length} 个文件...\n\n` +
+          `开始学习：`
+        );
+      }
 
       let projectContext = `📋 项目交接文档\n================\n\n`;
       projectContext += `Agent: ${agent.name}\n`;
       projectContext += `工作目录: ${cwd}\n`;
       projectContext += `初始化时间: ${new Date().toLocaleString()}\n\n`;
 
+      let loadedCount = 0;
+      let failedCount = 0;
+
       // 读取每个文件
-      for (const file of filesToRead) {
+      for (let i = 0; i < filesToRead.length; i++) {
+        const file = filesToRead[i];
+        const progress = `[${i + 1}/${filesToRead.length}]`;
+        
         try {
+          // 发送开始读取的进度
+          if (onProgress) {
+            await onProgress(`${progress} 📖 正在学习: ${file.desc} (${file.path})...`);
+          }
+
           const content = await readFile(join(cwd, file.path), 'utf-8');
+          loadedCount++;
+          
           // 截断过长内容，保留关键部分
           const truncated = content.length > 3000 
             ? content.substring(0, 3000) + '\n\n...[内容已截断，完整内容请查看文件]' 
             : content;
           
           projectContext += `\n---\n## ${file.desc} (${file.path})\n\n${truncated}\n`;
+
+          // 发送完成进度
+          const remaining = filesToRead.length - i - 1;
+          if (onProgress) {
+            const statusMsg = remaining > 0 
+              ? `${progress} ✅ 已完成: ${file.desc}（还剩 ${remaining} 个文件）`
+              : `${progress} ✅ 已完成: ${file.desc}`;
+            await onProgress(statusMsg);
+          }
         } catch (err) {
+          failedCount++;
           projectContext += `\n---\n## ${file.desc} (${file.path})\n\n⚠️ 无法读取: ${(err as Error).message}\n`;
+          
+          if (onProgress) {
+            await onProgress(`${progress} ⚠️ 跳过: ${file.desc}（读取失败）`);
+          }
         }
+
+        // 小延迟，让用户有时间阅读进度
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       projectContext += `\n---\n\n✅ 项目交接完成！\n\n作为创始者Agent，你的职责：\n`;
@@ -306,6 +360,16 @@ export class CommandHandler {
       projectContext += `4. 协助项目演进和重构\n\n`;
       projectContext += `可以使用 /status 查看状态，开始维护项目吧！`;
 
+      // 发送完成通知
+      if (onProgress) {
+        await onProgress(
+          `\n🎉 初始化完成！\n` +
+          `成功加载: ${loadedCount} 个文件\n` +
+          `${failedCount > 0 ? `加载失败: ${failedCount} 个文件\n` : ''}` +
+          `正在生成完整交接文档...`
+        );
+      }
+
       return {
         type: CommandType.ONBOARD,
         success: true,
@@ -313,7 +377,9 @@ export class CommandHandler {
         data: { 
           agentId: agent.id,
           workspace: cwd,
-          filesLoaded: filesToRead.length,
+          filesLoaded: loadedCount,
+          filesFailed: failedCount,
+          totalFiles: filesToRead.length,
         },
       };
     } catch (error) {
