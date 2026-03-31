@@ -186,13 +186,8 @@ export async function executeKimi(
       args.push('--model', options.model);
     }
 
-    if (options.cwd) {
-      args.push('--cwd', options.cwd);
-    }
-
-    if (options.systemPrompt) {
-      args.push('--system-prompt', options.systemPrompt);
-    }
+    // Note: kimi CLI doesn't support --cwd or --system-prompt options
+    // These are reserved for future API integration
 
     // Add the prompt as the last argument
     args.push(options.prompt);
@@ -200,6 +195,7 @@ export async function executeKimi(
     const child = spawn(cmd, args, {
       shell: true,
       env: { ...process.env },
+      cwd: options.cwd,
     });
 
     let stdout = '';

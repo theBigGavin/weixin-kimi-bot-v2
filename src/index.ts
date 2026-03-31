@@ -111,7 +111,6 @@ async function handleMessage(
       prompt: text,
       model: config.model,
       cwd: config.cwd,
-      systemPrompt: config.systemPrompt || undefined,
       timeout: 120000, // 2 minutes
     });
 
