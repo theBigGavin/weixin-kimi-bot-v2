@@ -184,8 +184,10 @@ export async function executeKimi(
       args.push('--model', options.model);
     }
 
-    // Note: kimi CLI doesn't support --cwd or --system-prompt options
-    // These are reserved for future API integration
+    // Use session ID for multi-turn context (if provided)
+    if (options.sessionId) {
+      args.push('--session', options.sessionId);
+    }
 
     // Add the prompt as the last argument
     args.push(options.prompt);

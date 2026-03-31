@@ -107,10 +107,14 @@ async function handleMessage(
   try {
     console.log(`  🤖 正在调用 Kimi...`);
     
+    // Use user's WeChat ID as session ID for context persistence
+    const userSessionId = config.multiTurn ? fromUser : undefined;
+    
     const result = await executeKimi({
       prompt: text,
       model: config.model,
       cwd: config.cwd,
+      sessionId: userSessionId,
       timeout: 120000, // 2 minutes
     });
 
