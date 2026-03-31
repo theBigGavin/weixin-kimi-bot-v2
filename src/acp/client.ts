@@ -47,10 +47,23 @@ export class ACPClient {
 
     try {
       // Spawn ACP process
+      console.log(`[ACP] Spawning: ${this.config.command} ${this.config.args.join(' ')}`);
       this.process = spawn(this.config.command, this.config.args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...this.config.env },
         cwd: this.config.cwd,
+      });
+
+      // Capture stderr for debugging
+      this.process.stderr?.on('data', (data) => {
+        console.error(`[ACP Server stderr]: ${data.toString()}`);
+      });
+
+      // Handle process exit
+      this.process.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(`[ACP] Process exited with code ${code}`);
+        }
       });
 
       // Create stdio stream
@@ -73,18 +86,17 @@ export class ACPClient {
             readTextFile: true,
             writeTextFile: false, // We don't allow write for safety
           },
-          terminal: {
-            create: false,
-            write: false,
-          },
+          terminal: false, // Terminal operations not supported in bot mode
         },
       });
 
       this.status = 'connected';
     } catch (error) {
       this.status = 'error';
+      const errorDetails = error instanceof Error ? error.message : JSON.stringify(error);
+      console.error('[ACP] Connection error details:', error);
       throw new Error(
-        `Failed to connect to ACP server: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to connect to ACP server: ${errorDetails}`
       );
     }
   }
