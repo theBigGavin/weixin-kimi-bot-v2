@@ -210,6 +210,17 @@ export interface AgentConfig {
     shellExec: boolean;
     webSearch: boolean;
   };
+  // Phase III: 共享绑定相关字段
+  /** 可见性: private(私有) | shared(共享) | invite_only(邀请制) */
+  visibility: 'private' | 'shared' | 'invite_only';
+  /** 最大绑定用户数 */
+  maxBindings: number;
+  /** 当前绑定用户数 */
+  currentBindingCount: number;
+  /** 允许绑定的微信ID列表（invite_only模式） */
+  allowedWechatIds: string[];
+  /** 创建者微信ID */
+  primaryWechatId: string;
 }
 
 /**

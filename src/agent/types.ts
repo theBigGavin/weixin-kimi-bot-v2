@@ -4,7 +4,8 @@
  * 定义 Agent 领域的核心类型和工厂函数
  */
 
-import { AgentConfig, createAgentId } from '../types/index.js';
+import { AgentConfig } from '../types/index.js';
+import { generateAgentId } from './id-generator.js';
 
 /**
  * Agent 状态
@@ -28,6 +29,18 @@ export enum TemplateType {
   CRYPTO_TRADER = 'crypto-trader',
   A_STOCK_TRADER = 'a-stock-trader',
   GENERAL = 'general',
+}
+
+/**
+ * Agent 可见性类型
+ */
+export enum AgentVisibility {
+  /** 私有 - 仅创建者可使用 */
+  PRIVATE = 'private',
+  /** 共享 - 任何知道AgentID的用户都可绑定 */
+  SHARED = 'shared',
+  /** 邀请制 - 需要创建者批准 */
+  INVITE_ONLY = 'invite_only',
 }
 
 /**
@@ -58,6 +71,9 @@ export const DEFAULT_AGENT_CONFIG = {
     shellExec: false,
     webSearch: true,
   },
+  visibility: AgentVisibility.PRIVATE,
+  maxBindings: 1,
+  currentBindingCount: 0,
 };
 
 /**
@@ -95,6 +111,12 @@ export interface CreateAgentConfigParams {
   };
   customSystemPrompt?: string;
   baseWorkDir?: string;
+  /** 可见性 */
+  visibility?: AgentVisibility;
+  /** 最大绑定数 */
+  maxBindings?: number;
+  /** 允许绑定的微信ID列表（invite_only模式） */
+  allowedWechatIds?: string[];
 }
 
 /**
@@ -103,7 +125,8 @@ export interface CreateAgentConfigParams {
  * @returns AgentConfig
  */
 export function createAgentConfig(params: CreateAgentConfigParams): AgentConfig {
-  const id = createAgentId(params.name);
+  // 使用新的 ID 生成器：{名称}_{微信ID前8位}_{4位随机码}
+  const id = generateAgentId(params.name, params.wechatAccountId);
   const now = Date.now();
   
   // 构建工作目录路径
@@ -118,6 +141,10 @@ export function createAgentConfig(params: CreateAgentConfigParams): AgentConfig 
 
   // 记忆配置
   const memoryEnabled = params.enableMemory !== false;
+
+  // 共享绑定配置
+  const visibility = params.visibility || DEFAULT_AGENT_CONFIG.visibility;
+  const maxBindings = params.maxBindings ?? DEFAULT_AGENT_CONFIG.maxBindings;
 
   return {
     id,
@@ -151,6 +178,12 @@ export function createAgentConfig(params: CreateAgentConfigParams): AgentConfig 
       shellExec: features.shellExec,
       webSearch: features.webSearch,
     },
+    // 共享绑定相关字段
+    visibility,
+    maxBindings,
+    currentBindingCount: 0,
+    allowedWechatIds: params.allowedWechatIds || [],
+    primaryWechatId: params.wechatAccountId,
   };
 }
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { AgentManager } from '../../../src/agent/manager.js';
-import { AgentStatus, createAgentConfig } from '../../../src/agent/types.js';
+import { AgentStatus, AgentVisibility, createAgentConfig } from '../../../src/agent/types.js';
 import { createStore } from '../../../src/store.js';
 
 describe('agent/manager', () => {
@@ -293,6 +293,217 @@ describe('agent/manager', () => {
 
       const runtime = manager.getRuntime(agent.config.id);
       expect(runtime?.errorCount).toBe(1);
+    });
+  });
+
+  describe('Phase III: 共享绑定功能', () => {
+    describe('canBind', () => {
+      it('应该允许绑定共享Agent', async () => {
+        const creator = 'wxid_creator';
+        const binder = 'wxid_binder';
+        
+        const agent = await manager.createAgent({
+          name: 'SharedAgent',
+          wechatAccountId: creator,
+          visibility: AgentVisibility.SHARED,
+          maxBindings: 5,
+        });
+
+        const canBind = await manager.canBind(agent.config.id, binder);
+        expect(canBind).toBe(true);
+      });
+
+      it('应该拒绝绑定私有Agent', async () => {
+        const creator = 'wxid_creator';
+        const binder = 'wxid_binder';
+        
+        const agent = await manager.createAgent({
+          name: 'PrivateAgent',
+          wechatAccountId: creator,
+          visibility: AgentVisibility.PRIVATE,
+        });
+
+        const canBind = await manager.canBind(agent.config.id, binder);
+        expect(canBind).toBe(false);
+      });
+
+      it('应该拒绝绑定已满的Agent', async () => {
+        const creator = 'wxid_creator';
+        
+        const agent = await manager.createAgent({
+          name: 'FullAgent',
+          wechatAccountId: creator,
+          visibility: AgentVisibility.SHARED,
+          maxBindings: 2, // 允许创建者 + 1个绑定者
+        });
+
+        // 模拟已达到最大绑定数
+        await manager.updateAgent(agent.config.id, { currentBindingCount: 2 });
+
+        const binder = 'wxid_binder';
+        const canBind = await manager.canBind(agent.config.id, binder);
+        expect(canBind).toBe(false);
+      });
+
+      it('应该拒绝创建者自己再次绑定', async () => {
+        const creator = 'wxid_creator';
+        
+        const agent = await manager.createAgent({
+          name: 'MyAgent',
+          wechatAccountId: creator,
+          visibility: AgentVisibility.SHARED,
+        });
+
+        const canBind = await manager.canBind(agent.config.id, creator);
+        expect(canBind).toBe(false);
+      });
+
+      it('应该根据邀请列表判断invite_only', async () => {
+        const creator = 'wxid_creator';
+        const invited = 'wxid_invited';
+        const notInvited = 'wxid_not_invited';
+        
+        const agent = await manager.createAgent({
+          name: 'InviteOnlyAgent',
+          wechatAccountId: creator,
+          visibility: AgentVisibility.INVITE_ONLY,
+          maxBindings: 5,
+          allowedWechatIds: [invited],
+        });
+
+        expect(await manager.canBind(agent.config.id, invited)).toBe(true);
+        expect(await manager.canBind(agent.config.id, notInvited)).toBe(false);
+      });
+    });
+
+    describe('isAgentOwner', () => {
+      it('应该正确识别Agent所有者', async () => {
+        const creator = 'wxid_creator';
+        const other = 'wxid_other';
+        
+        const agent = await manager.createAgent({
+          name: 'OwnedAgent',
+          wechatAccountId: creator,
+        });
+
+        expect(await manager.isAgentOwner(creator, agent.config.id)).toBe(true);
+        expect(await manager.isAgentOwner(other, agent.config.id)).toBe(false);
+      });
+    });
+
+    describe('bindingCount', () => {
+      it('应该增加绑定计数', async () => {
+        const agent = await manager.createAgent({
+          name: 'CountTest',
+          wechatAccountId: 'wxid_test',
+        });
+
+        expect(agent.config.currentBindingCount).toBe(0);
+
+        await manager.incrementBindingCount(agent.config.id);
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.currentBindingCount).toBe(1);
+      });
+
+      it('应该减少绑定计数', async () => {
+        const agent = await manager.createAgent({
+          name: 'CountTest',
+          wechatAccountId: 'wxid_test',
+        });
+
+        await manager.incrementBindingCount(agent.config.id);
+        await manager.incrementBindingCount(agent.config.id);
+        await manager.decrementBindingCount(agent.config.id);
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.currentBindingCount).toBe(1);
+      });
+
+      it('绑定计数不应该小于0', async () => {
+        const agent = await manager.createAgent({
+          name: 'CountTest',
+          wechatAccountId: 'wxid_test',
+        });
+
+        await manager.decrementBindingCount(agent.config.id);
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.currentBindingCount).toBe(0);
+      });
+    });
+
+    describe('allowedWechatIds', () => {
+      it('应该添加允许的用户', async () => {
+        const agent = await manager.createAgent({
+          name: 'AllowedTest',
+          wechatAccountId: 'wxid_creator',
+          visibility: AgentVisibility.INVITE_ONLY,
+        });
+
+        await manager.addAllowedUser(agent.config.id, 'wxid_user1');
+        await manager.addAllowedUser(agent.config.id, 'wxid_user2');
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.allowedWechatIds).toContain('wxid_user1');
+        expect(updated?.config.allowedWechatIds).toContain('wxid_user2');
+      });
+
+      it('不应该重复添加用户', async () => {
+        const agent = await manager.createAgent({
+          name: 'AllowedTest',
+          wechatAccountId: 'wxid_creator',
+          visibility: AgentVisibility.INVITE_ONLY,
+        });
+
+        await manager.addAllowedUser(agent.config.id, 'wxid_user1');
+        await manager.addAllowedUser(agent.config.id, 'wxid_user1');
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.allowedWechatIds).toHaveLength(1);
+      });
+
+      it('应该移除允许的用户', async () => {
+        const agent = await manager.createAgent({
+          name: 'AllowedTest',
+          wechatAccountId: 'wxid_creator',
+          visibility: AgentVisibility.INVITE_ONLY,
+        });
+
+        await manager.addAllowedUser(agent.config.id, 'wxid_user1');
+        await manager.addAllowedUser(agent.config.id, 'wxid_user2');
+        await manager.removeAllowedUser(agent.config.id, 'wxid_user1');
+        
+        const updated = await manager.getAgent(agent.config.id);
+        expect(updated?.config.allowedWechatIds).not.toContain('wxid_user1');
+        expect(updated?.config.allowedWechatIds).toContain('wxid_user2');
+      });
+    });
+
+    describe('listSharedAgents', () => {
+      it('应该只列出共享Agent', async () => {
+        await manager.createAgent({
+          name: 'PrivateAgent',
+          wechatAccountId: 'wxid_1',
+          visibility: AgentVisibility.PRIVATE,
+        });
+
+        await manager.createAgent({
+          name: 'SharedAgent',
+          wechatAccountId: 'wxid_2',
+          visibility: AgentVisibility.SHARED,
+        });
+
+        await manager.createAgent({
+          name: 'InviteOnlyAgent',
+          wechatAccountId: 'wxid_3',
+          visibility: AgentVisibility.INVITE_ONLY,
+        });
+
+        const sharedAgents = await manager.listSharedAgents();
+        expect(sharedAgents).toHaveLength(1);
+        expect(sharedAgents[0].config.name).toBe('SharedAgent');
+      });
     });
   });
 });

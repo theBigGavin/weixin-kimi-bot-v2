@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AgentStatus,
   TemplateType,
+  AgentVisibility,
   createAgentConfig,
   createAgentRuntime,
   createDefaultAgentConfig,
@@ -46,6 +47,14 @@ describe('agent/types', () => {
     });
   });
 
+  describe('AgentVisibility', () => {
+    it('应该定义可见性枚举', () => {
+      expect(AgentVisibility.PRIVATE).toBe('private');
+      expect(AgentVisibility.SHARED).toBe('shared');
+      expect(AgentVisibility.INVITE_ONLY).toBe('invite_only');
+    });
+  });
+
   describe('createAgentConfig', () => {
     it('应该创建基本配置', () => {
       const config = createAgentConfig({
@@ -55,8 +64,37 @@ describe('agent/types', () => {
 
       expect(config.name).toBe('TestAgent');
       expect(config.wechat.accountId).toBe('wxid_test123');
-      expect(config.id).toMatch(/^TestAgent_\d{8}_[a-z0-9]{8}$/);
+      // 新格式：名称_微信前缀_4位随机码
+      expect(config.id).toMatch(/^TestAgent_test123_[a-z0-9]{4}$/);
       expect(config.createdAt).toBeGreaterThan(0);
+    });
+
+    it('应该设置默认的共享绑定配置', () => {
+      const config = createAgentConfig({
+        name: 'TestAgent',
+        wechatAccountId: 'wxid_test123',
+      });
+
+      // 默认应该是私有，只允许创建者绑定
+      expect(config.visibility).toBe('private');
+      expect(config.maxBindings).toBe(1);
+      expect(config.currentBindingCount).toBe(0);
+      expect(config.allowedWechatIds).toEqual([]);
+      expect(config.primaryWechatId).toBe('wxid_test123');
+    });
+
+    it('应该应用自定义共享绑定配置', () => {
+      const config = createAgentConfig({
+        name: 'TestAgent',
+        wechatAccountId: 'wxid_test123',
+        visibility: AgentVisibility.SHARED,
+        maxBindings: 5,
+        allowedWechatIds: ['wxid_user1', 'wxid_user2'],
+      });
+
+      expect(config.visibility).toBe('shared');
+      expect(config.maxBindings).toBe(5);
+      expect(config.allowedWechatIds).toEqual(['wxid_user1', 'wxid_user2']);
     });
 
     it('应该应用自定义配置', () => {
@@ -100,6 +138,22 @@ describe('agent/types', () => {
       });
 
       expect(config.wechat.nickname).toBe('测试用户');
+    });
+
+    it('应该正确处理微信ID前缀提取', () => {
+      const config1 = createAgentConfig({
+        name: '助手',
+        wechatAccountId: 'wxid_a1b2c3d4e5f6g7h8',
+      });
+      // 应该提取 wxid_ 后的前8位
+      expect(config1.id).toContain('_a1b2c3d4_');
+
+      const config2 = createAgentConfig({
+        name: '助手',
+        wechatAccountId: 'abcdefghij', // 没有 wxid_ 前缀
+      });
+      // 应该直接取前8位
+      expect(config2.id).toContain('_abcdefgh_');
     });
   });
 

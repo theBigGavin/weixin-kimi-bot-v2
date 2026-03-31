@@ -164,6 +164,11 @@ export class AgentManager {
       temperature?: number;
       features?: Partial<AgentConfig['features']>;
       memory?: Partial<AgentConfig['memory']>;
+      // Phase III: 共享绑定相关字段
+      visibility?: 'private' | 'shared' | 'invite_only';
+      maxBindings?: number;
+      currentBindingCount?: number;
+      allowedWechatIds?: string[];
     }
   ): Promise<Agent> {
     const agent = await this.getAgent(agentId);
@@ -189,6 +194,19 @@ export class AgentManager {
     }
     if (updates.memory) {
       Object.assign(agent.config.memory, updates.memory);
+    }
+    // Phase III: 共享绑定字段
+    if (updates.visibility !== undefined) {
+      agent.config.visibility = updates.visibility;
+    }
+    if (updates.maxBindings !== undefined) {
+      agent.config.maxBindings = updates.maxBindings;
+    }
+    if (updates.currentBindingCount !== undefined) {
+      agent.config.currentBindingCount = updates.currentBindingCount;
+    }
+    if (updates.allowedWechatIds !== undefined) {
+      agent.config.allowedWechatIds = updates.allowedWechatIds;
     }
 
     // 验证更新后的配置
@@ -336,5 +354,166 @@ export class AgentManager {
         runtime,
       });
     }
+  }
+
+  // ===== Phase III: 共享绑定功能 =====
+
+  /**
+   * 检查微信用户是否可以绑定指定 Agent
+   * @param agentId Agent ID
+   * @param wechatId 微信用户ID
+   * @returns 是否可以绑定
+   */
+  async canBind(agentId: string, wechatId: string): Promise<boolean> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return false;
+
+    const config = agent.config;
+
+    // 检查是否已满
+    if (config.currentBindingCount >= config.maxBindings) {
+      return false;
+    }
+
+    // 检查是否为创建者（创建者已经绑定）
+    if (config.primaryWechatId === wechatId) {
+      return false; // 创建者不需要再次绑定
+    }
+
+    // 根据可见性判断
+    switch (config.visibility) {
+      case 'private':
+        // 私有：不允许其他人绑定
+        return false;
+
+      case 'shared':
+        // 共享：任何人都可以绑定
+        return true;
+
+      case 'invite_only':
+        // 邀请制：检查是否在允许列表中
+        return config.allowedWechatIds?.includes(wechatId) || false;
+
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * 获取无法绑定的原因
+   * @param agentId Agent ID
+   * @param wechatId 微信用户ID
+   * @returns 原因描述
+   */
+  async getBindRejectionReason(agentId: string, wechatId: string): Promise<string> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return 'Agent 不存在';
+
+    const config = agent.config;
+
+    if (config.currentBindingCount >= config.maxBindings) {
+      return 'Agent 已达到最大绑定用户数';
+    }
+
+    if (config.primaryWechatId === wechatId) {
+      return '您是此 Agent 的创建者';
+    }
+
+    switch (config.visibility) {
+      case 'private':
+        return '此 Agent 为私有，不接受绑定';
+      case 'invite_only':
+        return '此 Agent 为邀请制，您不在允许列表中';
+      default:
+        return '无法绑定';
+    }
+  }
+
+  /**
+   * 检查是否为 Agent 所有者（创建者）
+   * @param wechatId 微信用户ID
+   * @param agentId Agent ID
+   * @returns 是否为所有者
+   */
+  async isAgentOwner(wechatId: string, agentId: string): Promise<boolean> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return false;
+    return agent.config.primaryWechatId === wechatId;
+  }
+
+  /**
+   * 增加绑定计数
+   * @param agentId Agent ID
+   */
+  async incrementBindingCount(agentId: string): Promise<void> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return;
+
+    agent.config.currentBindingCount++;
+    await this.updateAgent(agentId, {
+      currentBindingCount: agent.config.currentBindingCount,
+    });
+  }
+
+  /**
+   * 减少绑定计数
+   * @param agentId Agent ID
+   */
+  async decrementBindingCount(agentId: string): Promise<void> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return;
+
+    if (agent.config.currentBindingCount > 0) {
+      agent.config.currentBindingCount--;
+      await this.updateAgent(agentId, {
+        currentBindingCount: agent.config.currentBindingCount,
+      });
+    }
+  }
+
+  /**
+   * 添加允许绑定的用户 (invite_only 模式)
+   * @param agentId Agent ID
+   * @param wechatId 微信用户ID
+   */
+  async addAllowedUser(agentId: string, wechatId: string): Promise<void> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return;
+
+    const allowedIds = agent.config.allowedWechatIds || [];
+    if (!allowedIds.includes(wechatId)) {
+      allowedIds.push(wechatId);
+      await this.updateAgent(agentId, {
+        allowedWechatIds: allowedIds,
+      });
+    }
+  }
+
+  /**
+   * 移除允许绑定的用户
+   * @param agentId Agent ID
+   * @param wechatId 微信用户ID
+   */
+  async removeAllowedUser(agentId: string, wechatId: string): Promise<void> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return;
+
+    const allowedIds = agent.config.allowedWechatIds || [];
+    const index = allowedIds.indexOf(wechatId);
+    if (index > -1) {
+      allowedIds.splice(index, 1);
+      await this.updateAgent(agentId, {
+        allowedWechatIds: allowedIds,
+      });
+    }
+  }
+
+  /**
+   * 列出所有共享的 Agent (visibility = shared)
+   * @returns Agent 列表
+   */
+  async listSharedAgents(): Promise<Agent[]> {
+    const allAgents = await this.listAgents();
+    return allAgents.filter(agent => agent.config.visibility === 'shared');
   }
 }
