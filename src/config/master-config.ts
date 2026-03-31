@@ -177,7 +177,7 @@ export async function updateGitHubSyncConfig(
   updates: Partial<GitHubSyncConfig>
 ): Promise<MasterConfig> {
   const config = await loadMasterConfig();
-  config.githubSync = { ...config.githubSync, ...updates };
+  config.githubSync = { ...config.githubSync, ...updates } as GitHubSyncConfig;
   await saveMasterConfig(config);
   return config;
 }
