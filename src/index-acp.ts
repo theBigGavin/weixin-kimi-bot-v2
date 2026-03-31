@@ -20,14 +20,17 @@ import {
   setContextToken,
 } from './config/index.js';
 import { ACPManager } from './acp/index.js';
+import { CommandHandler } from './handlers/command-handler.js';
+import { createAgent } from './agent/types.js';
 
 const SESSION_EXPIRED_ERRCODE = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1000; // 1 hour
 const RESET_COMMANDS = new Set(['新对话', '/reset', '/clear']);
 
-// --- ACP Manager ---
+// --- ACP Manager & Command Handler ---
 
 let acpManager: ACPManager | null = null;
+const commandHandler = new CommandHandler();
 
 /**
  * Initialize ACP manager
@@ -109,6 +112,21 @@ async function handleMessage(
       text.length > 80 ? '...' : ''
     }`
   );
+
+  // Check if it's a command
+  if (commandHandler.isCommand(text)) {
+    console.log(`  🔧 执行命令: ${text.trim()}`);
+    
+    // Create a mock agent for command handler
+    const agent = createAgent({
+      wechat: { accountId: fromUser },
+    });
+    
+    const result = await commandHandler.execute(text, agent);
+    await client.sendText(fromUser, result.response, contextToken);
+    console.log(`  ✅ 命令执行完成: ${result.type}`);
+    return;
+  }
 
   // Handle reset commands (multi-turn only)
   if (config.multiTurn && RESET_COMMANDS.has(text.trim())) {
