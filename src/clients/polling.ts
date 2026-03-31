@@ -22,14 +22,16 @@ import {
   initLongTaskManager,
   initFlowTaskManager,
   initSchedulerManager,
+  initCommandHandler,
+  getCommandHandler,
   getAcpManager,
   getTaskRouter,
   getAgent,
 } from '../init/managers.js';
-import { commandHandler, RESET_COMMANDS, SESSION_PAUSE_MS, SESSION_EXPIRED_ERRCODE } from '../init/state.js';
+import { RESET_COMMANDS, SESSION_PAUSE_MS, SESSION_EXPIRED_ERRCODE } from '../init/state.js';
 import { extractText } from '../message-handlers/extract.js';
 import { executeDirect, executeLongTask, executeFlowTask, handleFlowTaskConfirmation } from '../message-handlers/execute.js';
-import { handleTaskCommand } from '../task-commands/handlers.js';
+
 import { ExecutionMode, createTaskSubmission, TaskPriority } from '../task-router/index.js';
 
 export interface AgentClient {
@@ -91,6 +93,7 @@ export async function main(): Promise<void> {
   await initLongTaskManager(store);
   await initFlowTaskManager(store);
   initSchedulerManager();
+  initCommandHandler();
 
   console.log('=== 微信 Kimi Bot (智能任务路由 v2) 已启动 ===');
   console.log(`已加载 ${clients.length} 个 Agent:`);
@@ -211,7 +214,8 @@ async function handleMessage(
   if (flowHandled) return;
 
   // Handle commands
-  if (commandHandler.isCommand(text)) {
+  const handler = getCommandHandler();
+  if (handler && handler.isCommand(text)) {
     await executeEnhancedCommand(client, userId, text, contextToken, agentId);
     return;
   }
@@ -254,18 +258,11 @@ async function executeEnhancedCommand(
   agentId: string
 ): Promise<void> {
   const agent = await getAgent(agentId, fromUser);
+  const handler = getCommandHandler()!;
   
-  const result = await commandHandler.execute(text, agent, async (progressMsg) => {
+  const result = await handler.execute(text, agent, async (progressMsg) => {
     await client.sendText(fromUser, progressMsg, contextToken);
   });
-
-  // Handle /task command specially
-  if (result.type === 'task') {
-    const args = text.slice(5).trim().split(/\s+/);
-    const taskResult = await handleTaskCommand(args, fromUser);
-    await client.sendText(fromUser, taskResult.response, contextToken);
-    return;
-  }
 
   await client.sendText(fromUser, result.response, contextToken);
 }

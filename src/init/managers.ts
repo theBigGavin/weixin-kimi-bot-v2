@@ -14,9 +14,11 @@ import { FileStore } from '../store.js';
 import { TaskRouter } from '../task-router/index.js';
 import { SchedulerManager } from '../scheduler/manager.js';
 import { getBaseDir } from '../paths.js';
-import { waitingFlowTasks } from './state.js';
+import { waitingFlowTasks, setCommandHandler } from './state.js';
+import { CommandHandler } from '../handlers/command-handler.js';
 
 // Manager instances
+let commandHandler: CommandHandler | null = null;
 let acpManager: ACPManager | null = null;
 let agentManager: AgentManager | null = null;
 let taskRouter: TaskRouter | null = null;
@@ -188,3 +190,13 @@ export function getFlowTaskManager(): FlowTaskManager | null { return flowTaskMa
 export function getMemoryManager(): MemoryManager | null { return memoryManager; }
 export function getMemoryExtractor(): MemoryExtractor | null { return memoryExtractor; }
 export function getSchedulerManager(): SchedulerManager | null { return schedulerManager; }
+
+export function initCommandHandler(): CommandHandler {
+  if (commandHandler) return commandHandler;
+  
+  commandHandler = new CommandHandler();
+  setCommandHandler(commandHandler);
+  return commandHandler;
+}
+
+export function getCommandHandler(): CommandHandler | null { return commandHandler; }
