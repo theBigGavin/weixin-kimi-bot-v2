@@ -169,19 +169,29 @@ class ScheduleCreateSubCommand extends SubCommand {
     switch (typeStr) {
       case 'ONCE': {
         type = ScheduleType.ONCE;
-        const timestamp = Date.parse(scheduleValue);
-        if (!isNaN(timestamp)) {
-          scheduleConfig = { delay: timestamp - Date.now() };
-        } else {
+        // Check if it's a pure number (treat as minutes)
+        const isPureNumber = /^\d+$/.test(scheduleValue);
+        if (isPureNumber) {
           const minutes = parseInt(scheduleValue, 10);
-          if (isNaN(minutes) || minutes <= 0) {
+          if (minutes <= 0) {
+            return ResponseBuilder.error(
+              `无效的分钟数: ${scheduleValue}。请使用正整数表示分钟`,
+              'InvalidTimeFormat',
+              CommandType.SCHEDULE
+            );
+          }
+          scheduleConfig = { delay: minutes * 60 * 1000 };
+        } else {
+          // Try parsing as ISO timestamp
+          const timestamp = Date.parse(scheduleValue);
+          if (isNaN(timestamp)) {
             return ResponseBuilder.error(
               `无效的时间格式: ${scheduleValue}。请使用 ISO 时间 (如 2026-04-01T10:00:00) 或分钟数`,
               'InvalidTimeFormat',
               CommandType.SCHEDULE
             );
           }
-          scheduleConfig = { delay: minutes * 60 * 1000 };
+          scheduleConfig = { delay: timestamp - Date.now() };
         }
         break;
       }
