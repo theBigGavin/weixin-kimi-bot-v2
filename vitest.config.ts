@@ -7,12 +7,12 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'json-summary', 'lcov'],
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80,
+        lines: 85,
+        functions: 85,
+        branches: 80,
+        statements: 85,
       },
       exclude: [
         'node_modules/',
@@ -20,6 +20,7 @@ export default defineConfig({
         'tests/',
         '**/*.d.ts',
         '**/*.config.ts',
+        'docs/',
       ],
     },
     testTimeout: 10000,
