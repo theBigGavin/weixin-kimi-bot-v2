@@ -1,4 +1,18 @@
-# 任务系统架构关系分析
+# Phase IV 备选特性: Scheduled Task Executor 框架
+
+> **状态**: 备选特性 (Backlog)  
+> **阶段**: Phase IV - 高级功能  
+> **优先级**: 低  
+> **依赖**: LongTask, FlowTask, Scheduler 系统已稳定运行
+
+## 背景
+
+当前系统已实现的三种任务管理机制：
+1. **ScheduledTask（定时任务）**: 基于时间触发的轻量级任务
+2. **LongTask（长任务）**: 后台异步执行的重量级任务  
+3. **FlowTask（流程任务）**: 需要人机协作的多步骤任务
+
+本提案的目标是提供一种**标准化的方式**，让定时任务能够方便地触发长任务和流程任务。
 
 ## 概述
 
@@ -354,6 +368,28 @@ interface ScheduledTaskExecution {
   childTaskId?: string; // 关联的长任务/流程任务ID
 }
 ```
+
+## 实施路线图 (Phase IV)
+
+### Phase IV-A: 基础增强
+- [ ] 添加 metadata 字段到 ScheduledTask
+- [ ] 实现 execution history 记录
+- [ ] 添加从 LongTask/FlowTask 反向查询触发源的能力
+
+### Phase IV-B: Executor 框架
+- [ ] 实现 `ScheduledTaskExecutor` 抽象类
+- [ ] 实现 `SimpleExecutor`、`LongTaskExecutor`、`FlowTaskExecutor`
+- [ ] 重构现有 handlers 使用新框架
+
+### Phase IV-C: 任务链支持
+- [ ] 设计任务链 DSL
+- [ ] 实现链式执行引擎
+- [ ] 支持条件分支和错误处理
+
+### Phase IV-D: 持久化
+- [ ] ScheduledTask 持久化到文件
+- [ ] 支持重启后恢复定时任务
+- [ ] Execution history 持久化
 
 ## 结论
 
