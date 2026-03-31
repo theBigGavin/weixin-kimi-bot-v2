@@ -25,9 +25,9 @@ describe('Kimi Executor', () => {
       expect(result).toBe('kimi --model k1.5 "Hello"');
     });
 
-    it('should include cwd option', () => {
+    it('should include work-dir option', () => {
       const result = buildKimiCommand({ prompt: 'Hello', cwd: '/tmp' });
-      expect(result).toBe('kimi --cwd /tmp "Hello"');
+      expect(result).toBe('kimi --work-dir /tmp "Hello"');
     });
 
     it('should escape special characters in prompt', () => {
@@ -35,13 +35,13 @@ describe('Kimi Executor', () => {
       expect(result).toBe('kimi "Hello \\"World\\""');
     });
 
-    it('should include system prompt', () => {
+    it('should ignore system prompt (not supported by CLI)', () => {
       const result = buildKimiCommand({
         prompt: 'Hello',
         systemPrompt: 'You are a helpful assistant',
       });
-      expect(result).toContain('--system-prompt');
-      expect(result).toContain('You are a helpful assistant');
+      // systemPrompt is not included in CLI command (reserved for API)
+      expect(result).toBe('kimi "Hello"');
     });
 
     it('should throw on empty prompt', () => {

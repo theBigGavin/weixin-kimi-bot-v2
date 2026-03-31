@@ -58,16 +58,14 @@ export function buildKimiCommand(params: KimiExecutorOptions): string {
   }
 
   if (params.cwd) {
-    parts.push('--cwd', params.cwd);
+    parts.push('--work-dir', params.cwd);
   }
 
-  if (params.systemPrompt) {
-    parts.push('--system-prompt', escapeShellArg(params.systemPrompt));
-  }
+  // Note: kimi CLI doesn't support --system-prompt
+  // systemPrompt is reserved for future API integration
 
-  if (params.maxTurns) {
-    parts.push('--max-turns', String(params.maxTurns));
-  }
+  // Note: kimi CLI doesn't support --max-turns directly
+  // maxTurns is reserved for future API integration
 
   // Add prompt (escaped)
   parts.push(escapeShellArg(params.prompt));
