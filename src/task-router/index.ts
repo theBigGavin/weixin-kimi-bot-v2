@@ -5,11 +5,25 @@
  * - DIRECT: 直接执行，同步返回
  * - LONGTASK: 长任务，后台异步执行
  * - FLOWTASK: 流程任务，结构化多步骤
+ * 
+ * Phase IV: Intelligent Task Router (ITR)
+ * - Capability Protocol
+ * - Intent Cache
+ * - LLM Decision Engine
  */
 
+// 基础类型
 export * from './types.js';
+
+// 传统路由（基于规则）
 export { TaskAnalyzer, analyzeTask } from './analyzer.js';
 export { DecisionEngine, makeDecision } from './decision.js';
+
+// Phase IV: Capability Protocol
+export * from './protocol/index.js';
+
+// Phase IV: Caching
+export * from './caching/index.js';
 
 import { TaskAnalyzer } from './analyzer.js';
 import { DecisionEngine } from './decision.js';
