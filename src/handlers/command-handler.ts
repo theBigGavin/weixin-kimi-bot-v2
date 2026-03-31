@@ -76,8 +76,8 @@ const AVAILABLE_COMMANDS: CommandInfo[] = [
   },
   {
     name: 'task',
-    description: '管理任务',
-    usage: '/task <list|status>',
+    description: '管理长任务和流程任务',
+    usage: '/task <list|status <id>|cancel <id>>',
   },
   {
     name: 'test',

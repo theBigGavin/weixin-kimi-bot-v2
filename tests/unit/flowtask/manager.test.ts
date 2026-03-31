@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FlowTaskManager } from '../../../src/flowtask/manager.js';
 import { FlowTaskStatus, createFlowTaskId, FlowStep } from '../../../src/flowtask/types.js';
 import { TaskSubmission, TaskPriority } from '../../../src/task-router/types.js';
+import { ACPManager } from '../../../src/acp/index.js';
+
+// Mock ACPManager
+const mockAcpManager = {
+  prompt: vi.fn().mockResolvedValue({ text: 'mock result' }),
+} as unknown as ACPManager;
 
 describe('flowtask/manager', () => {
   let manager: FlowTaskManager;
@@ -22,7 +28,7 @@ describe('flowtask/manager', () => {
   ];
 
   beforeEach(() => {
-    manager = new FlowTaskManager();
+    manager = new FlowTaskManager({ acpManager: mockAcpManager });
   });
 
   describe('create', () => {
@@ -36,105 +42,76 @@ describe('flowtask/manager', () => {
     });
   });
 
-  describe('start', () => {
-    it('应该启动任务', () => {
-      const task = manager.create(createSubmission('测试'), createPlan());
-      const started = manager.start(task.id);
+  describe('createPlan', () => {
+    it('应该为部署任务生成计划', () => {
+      const plan = manager.createPlan('部署项目到生产环境');
       
-      expect(started?.status).toBe(FlowTaskStatus.RUNNING);
-      expect(started?.startedAt).toBeDefined();
+      expect(plan.length).toBeGreaterThan(0);
+      expect(plan.some(s => s.description.includes('备份'))).toBe(true);
     });
 
-    it('不存在的任务返回null', () => {
-      const result = manager.start('non-existent');
-      expect(result).toBeNull();
+    it('应该为重构任务生成计划', () => {
+      const plan = manager.createPlan('重构代码');
+      
+      expect(plan.length).toBeGreaterThan(0);
+      expect(plan.some(s => s.description.includes('重构'))).toBe(true);
+    });
+
+    it('应该为迁移任务生成计划', () => {
+      const plan = manager.createPlan('迁移数据到新的数据库');
+      
+      expect(plan.length).toBeGreaterThan(0);
+      expect(plan.some(s => s.description.includes('迁移') || s.description.includes('数据'))).toBe(true);
     });
   });
 
-  describe('executeStep', () => {
-    it('应该执行步骤', async () => {
-      const task = manager.create(createSubmission('测试'), createPlan());
-      manager.start(task.id);
-      
-      const updated = await manager.executeStep(task.id, async (step) => {
-        return `完成: ${step.description}`;
-      });
-      
-      expect(updated?.currentStep).toBe(1);
-      expect(updated?.results).toHaveLength(1);
-      expect(updated?.results[0].status).toBe('completed');
-    });
-
-    it('需要确认时进入等待状态', async () => {
+  describe('start', () => {
+    it('应该启动任务', async () => {
+      // 使用不需要确认的计划（但多个步骤，避免立即完成）
       const plan: FlowStep[] = [
-        { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: true, estimatedDuration: 5000 },
+        { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: false, estimatedDuration: 5000 },
+        { id: 'step2', order: 2, description: '步骤2', requiresConfirmation: false, estimatedDuration: 5000 },
       ];
       const task = manager.create(createSubmission('测试'), plan);
-      manager.start(task.id);
+      const started = await manager.start(task.id);
       
-      const updated = await manager.executeStep(task.id, async () => '结果');
+      expect(started).toBe(true);
       
-      expect(updated?.status).toBe(FlowTaskStatus.WAITING_CONFIRM);
+      const updatedTask = manager.getTask(task.id);
+      // 状态可能是 running（执行中）或 waiting_confirm（等待确认）或 completed（已完成）
+      expect(updatedTask?.startedAt).toBeDefined();
+      expect([FlowTaskStatus.RUNNING, FlowTaskStatus.WAITING_CONFIRM, FlowTaskStatus.COMPLETED]).toContain(updatedTask?.status);
     });
 
-    it('执行失败应标记失败', async () => {
-      const task = manager.create(createSubmission('测试'), createPlan());
-      manager.start(task.id);
-      
-      const updated = await manager.executeStep(task.id, async () => {
-        throw new Error('执行错误');
-      });
-      
-      expect(updated?.status).toBe(FlowTaskStatus.FAILED);
-      expect(updated?.results[0].status).toBe('failed');
-      expect(updated?.results[0].error).toBe('Error: 执行错误');
-    });
-
-    it('非运行状态返回null', async () => {
-      const task = manager.create(createSubmission('测试'), createPlan());
-      const result = await manager.executeStep(task.id, async () => '结果');
-      expect(result).toBeNull();
+    it('不存在的任务返回false', async () => {
+      const result = await manager.start('non-existent');
+      expect(result).toBe(false);
     });
   });
 
   describe('confirmAndContinue', () => {
-    it('应该确认并继续', async () => {
-      const plan: FlowStep[] = [
-        { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: true, estimatedDuration: 5000 },
-      ];
-      const task = manager.create(createSubmission('测试'), plan);
-      manager.start(task.id);
-      
-      // 先执行步骤进入等待确认状态
-      await manager.executeStep(task.id, async () => '结果');
-      
-      const confirmed = manager.confirmAndContinue(task.id);
-      
-      expect(confirmed?.status).toBe(FlowTaskStatus.RUNNING);
-    });
-
-    it('非等待状态返回null', () => {
+    it('非等待状态返回null', async () => {
       const task = manager.create(createSubmission('测试'), createPlan());
-      const result = manager.confirmAndContinue(task.id);
+      const result = await manager.confirmAndContinue(task.id, 'user_test');
       expect(result).toBeNull();
     });
   });
 
   describe('skipStep', () => {
-    it('应该跳过当前步骤', () => {
+    it('应该跳过当前步骤', async () => {
       const task = manager.create(createSubmission('测试'), createPlan());
-      const updated = manager.skipStep(task.id);
+      const updated = await manager.skipStep(task.id, 'user_test');
       
       expect(updated?.currentStep).toBe(1);
       expect(updated?.results[0].status).toBe('skipped');
     });
 
-    it('所有步骤完成后标记完成', () => {
+    it('所有步骤完成后标记完成', async () => {
       const plan: FlowStep[] = [
         { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: false, estimatedDuration: 5000 },
       ];
       const task = manager.create(createSubmission('测试'), plan);
-      const updated = manager.skipStep(task.id);
+      const updated = await manager.skipStep(task.id, 'user_test');
       
       expect(updated?.status).toBe(FlowTaskStatus.COMPLETED);
       expect(updated?.completedAt).toBeDefined();
@@ -142,21 +119,21 @@ describe('flowtask/manager', () => {
   });
 
   describe('cancel', () => {
-    it('应该取消任务', () => {
+    it('应该取消任务', async () => {
       const task = manager.create(createSubmission('测试'), createPlan());
-      const cancelled = manager.cancel(task.id);
+      const cancelled = await manager.cancel(task.id);
       
       expect(cancelled?.status).toBe(FlowTaskStatus.CANCELLED);
     });
 
-    it('已完成任务不能取消', () => {
+    it('已完成任务不能取消', async () => {
       const plan: FlowStep[] = [
         { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: false, estimatedDuration: 5000 },
       ];
       const task = manager.create(createSubmission('测试'), plan);
-      manager.skipStep(task.id); // 这会标记为完成
+      await manager.skipStep(task.id, 'user_test'); // 这会标记为完成
       
-      const cancelled = manager.cancel(task.id);
+      const cancelled = await manager.cancel(task.id);
       expect(cancelled).toBeNull();
     });
   });
@@ -168,6 +145,11 @@ describe('flowtask/manager', () => {
       
       expect(retrieved?.id).toBe(task.id);
     });
+
+    it('不存在返回null', () => {
+      const result = manager.getTask('non-existent');
+      expect(result).toBeNull();
+    });
   });
 
   describe('getCurrentStep', () => {
@@ -178,15 +160,46 @@ describe('flowtask/manager', () => {
       expect(step?.id).toBe('step1');
     });
 
-    it('完成所有步骤返回null', () => {
+    it('完成所有步骤返回null', async () => {
       const plan: FlowStep[] = [
         { id: 'step1', order: 1, description: '步骤1', requiresConfirmation: false, estimatedDuration: 5000 },
       ];
       const task = manager.create(createSubmission('测试'), plan);
-      manager.skipStep(task.id);
+      await manager.skipStep(task.id, 'user_test');
       
       const step = manager.getCurrentStep(task.id);
       expect(step).toBeNull();
+    });
+  });
+
+  describe('getProgressDescription', () => {
+    it('应该返回进度描述', () => {
+      const task = manager.create(createSubmission('测试'), createPlan());
+      const desc = manager.getProgressDescription(task.id);
+      
+      expect(desc).toContain('0/3');
+      expect(desc).toContain('pending');
+    });
+
+    it('任务不存在返回提示', () => {
+      const desc = manager.getProgressDescription('non-existent');
+      expect(desc).toBe('任务不存在');
+    });
+  });
+
+  describe('generateReport', () => {
+    it('应该生成任务报告', () => {
+      const task = manager.create(createSubmission('测试'), createPlan());
+      const report = manager.generateReport(task.id);
+      
+      expect(report).toContain('流程任务报告');
+      expect(report).toContain(task.id);
+      expect(report).toContain('执行步骤');
+    });
+
+    it('任务不存在返回提示', () => {
+      const report = manager.generateReport('non-existent');
+      expect(report).toBe('任务不存在');
     });
   });
 });

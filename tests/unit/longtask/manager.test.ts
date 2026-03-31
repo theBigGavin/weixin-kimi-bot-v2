@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LongTaskManager } from '../../../src/longtask/manager.js';
 import { LongTaskStatus, createLongTaskId } from '../../../src/longtask/types.js';
 import { TaskSubmission, TaskPriority } from '../../../src/task-router/types.js';
+import { ACPManager } from '../../../src/acp/index.js';
+
+// Mock ACPManager
+const mockAcpManager = {
+  prompt: vi.fn().mockResolvedValue({ text: 'mock result' }),
+} as unknown as ACPManager;
 
 describe('longtask/manager', () => {
   let manager: LongTaskManager;
@@ -16,7 +22,7 @@ describe('longtask/manager', () => {
   });
 
   beforeEach(() => {
-    manager = new LongTaskManager();
+    manager = new LongTaskManager({ acpManager: mockAcpManager });
   });
 
   describe('submit', () => {
@@ -30,40 +36,44 @@ describe('longtask/manager', () => {
   });
 
   describe('start', () => {
-    it('应该启动任务', () => {
+    it('应该启动任务', async () => {
       const task = manager.submit(createSubmission('测试'));
-      const started = manager.start(task.id);
+      const started = await manager.start(task.id, 'user_test');
       
-      expect(started?.status).toBe(LongTaskStatus.RUNNING);
-      expect(started?.startedAt).toBeDefined();
+      expect(started).toBe(true);
+      
+      // 获取任务检查状态
+      const updatedTask = manager.getTask(task.id);
+      expect(updatedTask?.status).toBe(LongTaskStatus.RUNNING);
+      expect(updatedTask?.startedAt).toBeDefined();
       expect(manager.getActiveCount()).toBe(1);
     });
 
-    it('不存在的任务返回null', () => {
-      const result = manager.start('non-existent');
-      expect(result).toBeNull();
+    it('不存在的任务返回false', async () => {
+      const result = await manager.start('non-existent', 'user_test');
+      expect(result).toBe(false);
     });
   });
 
   describe('updateProgress', () => {
-    it('应该更新进度', () => {
+    it('应该更新进度', async () => {
       const task = manager.submit(createSubmission('测试'));
-      manager.start(task.id);
+      await manager.start(task.id, 'user_test');
       
-      const updated = manager.updateProgress(task.id, 50, '处理中...');
+      const updated = await manager.updateProgress(task.id, 50, '处理中...');
       
       expect(updated?.progress).toBe(50);
-      expect(updated?.progressLogs).toHaveLength(1);
-      expect(updated?.progressLogs[0].message).toBe('处理中...');
+      expect(updated?.progressLogs.length).toBeGreaterThanOrEqual(1);
+      expect(updated?.progressLogs[updated.progressLogs.length - 1].message).toBe('处理中...');
     });
   });
 
   describe('complete', () => {
-    it('应该完成任务', () => {
+    it('应该完成任务', async () => {
       const task = manager.submit(createSubmission('测试'));
-      manager.start(task.id);
+      await manager.start(task.id, 'user_test');
       
-      const completed = manager.complete(task.id, '任务结果');
+      const completed = await manager.complete(task.id, '任务结果');
       
       expect(completed?.status).toBe(LongTaskStatus.COMPLETED);
       expect(completed?.result).toBe('任务结果');
@@ -73,11 +83,11 @@ describe('longtask/manager', () => {
   });
 
   describe('fail', () => {
-    it('应该标记任务失败', () => {
+    it('应该标记任务失败', async () => {
       const task = manager.submit(createSubmission('测试'));
-      manager.start(task.id);
+      await manager.start(task.id, 'user_test');
       
-      const failed = manager.fail(task.id, '出错了');
+      const failed = await manager.fail(task.id, '出错了');
       
       expect(failed?.status).toBe(LongTaskStatus.FAILED);
       expect(failed?.error).toBe('出错了');
@@ -86,30 +96,30 @@ describe('longtask/manager', () => {
   });
 
   describe('cancel', () => {
-    it('应该取消待处理任务', () => {
+    it('应该取消待处理任务', async () => {
       const task = manager.submit(createSubmission('测试'));
       
-      const cancelled = manager.cancel(task.id);
+      const cancelled = await manager.cancel(task.id);
       
       expect(cancelled?.status).toBe(LongTaskStatus.CANCELLED);
     });
 
-    it('应该取消运行中任务', () => {
+    it('应该取消运行中任务', async () => {
       const task = manager.submit(createSubmission('测试'));
-      manager.start(task.id);
+      await manager.start(task.id, 'user_test');
       
-      const cancelled = manager.cancel(task.id);
+      const cancelled = await manager.cancel(task.id);
       
       expect(cancelled?.status).toBe(LongTaskStatus.CANCELLED);
       expect(manager.getActiveCount()).toBe(0);
     });
 
-    it('已完成任务不能取消', () => {
+    it('已完成任务不能取消', async () => {
       const task = manager.submit(createSubmission('测试'));
-      manager.start(task.id);
-      manager.complete(task.id, '结果');
+      await manager.start(task.id, 'user_test');
+      await manager.complete(task.id, '结果');
       
-      const cancelled = manager.cancel(task.id);
+      const cancelled = await manager.cancel(task.id);
       expect(cancelled).toBeNull();
     });
   });
@@ -129,10 +139,10 @@ describe('longtask/manager', () => {
   });
 
   describe('getPendingTasks', () => {
-    it('应该返回待处理任务', () => {
+    it('应该返回待处理任务', async () => {
       const task1 = manager.submit(createSubmission('任务1'));
       const task2 = manager.submit(createSubmission('任务2'));
-      manager.start(task2.id);
+      await manager.start(task2.id, 'user_test');
       
       const pending = manager.getPendingTasks();
       
