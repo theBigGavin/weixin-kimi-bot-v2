@@ -10,18 +10,30 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
+    "start": "node --import tsx src/index.ts",
+    "login": "node --import tsx src/login.ts",
     "dev": "tsx src/index.ts",
     "lint": "tsc --noEmit"
   },
-  "keywords": ["weixin", "kimi", "bot", "ai", "assistant"],
+  "keywords": [
+    "weixin",
+    "kimi",
+    "bot",
+    "ai",
+    "assistant"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/qrcode-terminal": "^0.12.2",
     "@vitest/coverage-v8": "^1.2.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "weixin-ilink": "^0.1.0"
+  }
 }
