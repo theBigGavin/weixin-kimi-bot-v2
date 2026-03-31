@@ -6,6 +6,8 @@
 
 import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 export enum CommandType {
   HELP = 'help',
@@ -16,6 +18,7 @@ export enum CommandType {
   MEMORY = 'memory',
   TASK = 'task',
   TEST = 'test',
+  ONBOARD = 'onboard',
   UNKNOWN = 'unknown',
 }
 
@@ -75,6 +78,11 @@ const AVAILABLE_COMMANDS: CommandInfo[] = [
     description: '测试Bot连接',
     usage: '/test',
   },
+  {
+    name: 'onboard',
+    description: '创始者Agent初始化：读取项目文档了解代码库',
+    usage: '/onboard',
+  },
 ];
 
 export class CommandHandler {
@@ -112,6 +120,8 @@ export class CommandHandler {
         return this.handleTask(args, agent);
       case 'test':
         return this.handleTest(agent);
+      case 'onboard':
+        return await this.handleOnboard(agent);
       default:
         return {
           type: CommandType.UNKNOWN,
@@ -240,5 +250,79 @@ export class CommandHandler {
       success: true,
       response: `✅ Bot 连接正常！\nAgent: ${agent.name}\n时间: ${new Date().toLocaleString()}`,
     };
+  }
+
+  /**
+   * 创始者Agent项目初始化：读取项目关键文件
+   * 让Agent了解项目结构、架构和业务逻辑
+   */
+  private async handleOnboard(agent: Agent): Promise<CommandResult> {
+    // 只建议创始者模板使用
+    if (agent.ai.templateId !== 'founder') {
+      return {
+        type: CommandType.ONBOARD,
+        success: false,
+        response: '⚠️ /onboard 命令专为创始者Agent设计，用于初始化项目交接。当前Agent模板: ' + agent.ai.templateId,
+      };
+    }
+
+    try {
+      const cwd = process.cwd();
+      
+      // 定义要读取的关键文件
+      const filesToRead = [
+        { path: 'README.md', desc: '项目概览' },
+        { path: 'AGENTS.md', desc: '项目指南' },
+        { path: 'package.json', desc: '依赖配置' },
+        { path: 'tsconfig.json', desc: 'TypeScript配置' },
+        { path: 'docs/architecture/architecture-overview.md', desc: '架构文档' },
+        { path: 'docs/architecture/TDD_REDVELOPMENT_GUIDE.md', desc: '开发指南' },
+      ];
+
+      let projectContext = `📋 项目交接文档\n================\n\n`;
+      projectContext += `Agent: ${agent.name}\n`;
+      projectContext += `工作目录: ${cwd}\n`;
+      projectContext += `初始化时间: ${new Date().toLocaleString()}\n\n`;
+
+      // 读取每个文件
+      for (const file of filesToRead) {
+        try {
+          const content = await readFile(join(cwd, file.path), 'utf-8');
+          // 截断过长内容，保留关键部分
+          const truncated = content.length > 3000 
+            ? content.substring(0, 3000) + '\n\n...[内容已截断，完整内容请查看文件]' 
+            : content;
+          
+          projectContext += `\n---\n## ${file.desc} (${file.path})\n\n${truncated}\n`;
+        } catch (err) {
+          projectContext += `\n---\n## ${file.desc} (${file.path})\n\n⚠️ 无法读取: ${(err as Error).message}\n`;
+        }
+      }
+
+      projectContext += `\n---\n\n✅ 项目交接完成！\n\n作为创始者Agent，你的职责：\n`;
+      projectContext += `1. 熟悉项目架构和技术栈\n`;
+      projectContext += `2. 理解TDD开发流程\n`;
+      projectContext += `3. 维护代码质量和文档\n`;
+      projectContext += `4. 协助项目演进和重构\n\n`;
+      projectContext += `可以使用 /status 查看状态，开始维护项目吧！`;
+
+      return {
+        type: CommandType.ONBOARD,
+        success: true,
+        response: projectContext,
+        data: { 
+          agentId: agent.id,
+          workspace: cwd,
+          filesLoaded: filesToRead.length,
+        },
+      };
+    } catch (error) {
+      return {
+        type: CommandType.ONBOARD,
+        success: false,
+        response: '❌ 项目初始化失败: ' + (error as Error).message,
+        error: (error as Error).message,
+      };
+    }
   }
 }
