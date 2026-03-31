@@ -15,6 +15,7 @@ import {
   loadConfig,
   loadContextTokens,
   loadSessionIds,
+  loadSyncBuf,
   saveSyncBuf,
   getContextToken,
   setContextToken,
