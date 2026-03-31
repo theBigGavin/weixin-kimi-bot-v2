@@ -8,6 +8,7 @@ import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { homedir } from 'os';
 import { MemoryManager, createFactId } from '../memory/index.js';
 import type { MemoryFact } from '../memory/index.js';
 
@@ -228,7 +229,7 @@ export class CommandHandler {
     
     // 初始化记忆管理器
     const memManager = new MemoryManager({
-      baseDir: process.env.WEIXIN_KIMI_BOT_HOME || require('os').homedir() + '/.weixin-kimi-bot'
+      baseDir: process.env.WEIXIN_KIMI_BOT_HOME || homedir() + '/.weixin-kimi-bot'
     });
     
     try {
