@@ -229,4 +229,41 @@ export interface AgentRuntimeUpdate {
 export interface Agent {
   config: AgentConfig;
   runtime: AgentRuntime;
+  // 便捷访问属性
+  id: string;
+  name: string;
+  ai: AgentConfig['ai'];
+  memory: AgentConfig['memory'];
+  wechat: AgentConfig['wechat'];
+}
+
+/**
+ * 创建 Agent 实例（便捷工厂函数）
+ * @param params 创建参数
+ * @returns Agent 实例
+ */
+export function createAgent(params: {
+  wechat: { accountId: string; nickname?: string };
+  name?: string;
+  templateId?: string;
+}): Agent {
+  const name = params.name || `Agent-${params.wechat.accountId.slice(0, 8)}`;
+  const config = createAgentConfig({
+    name,
+    wechatAccountId: params.wechat.accountId,
+    wechatNickname: params.wechat.nickname,
+    templateId: params.templateId || TemplateType.GENERAL,
+  });
+
+  const runtime = createAgentRuntime(config.id);
+
+  return {
+    config,
+    runtime,
+    id: config.id,
+    name: config.name,
+    ai: config.ai,
+    memory: config.memory,
+    wechat: config.wechat,
+  };
 }
