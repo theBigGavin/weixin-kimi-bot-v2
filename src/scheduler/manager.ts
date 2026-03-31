@@ -49,10 +49,21 @@ interface TaskTimer {
 }
 
 export class SchedulerManager {
+  private static instance: SchedulerManager | null = null;
   private tasks = new Map<string, ScheduledTask>();
   private handlers = new Map<string, TaskHandler>();
   private timers = new Map<string, TaskTimer>();
   private running = false;
+
+  /**
+   * Get the singleton instance
+   */
+  static getInstance(): SchedulerManager {
+    if (!SchedulerManager.instance) {
+      SchedulerManager.instance = new SchedulerManager();
+    }
+    return SchedulerManager.instance;
+  }
 
   /**
    * Register a task handler

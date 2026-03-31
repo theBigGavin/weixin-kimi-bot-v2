@@ -186,4 +186,73 @@ describe('command-handler', () => {
       expect(handler.isCommand('Can you help?')).toBe(false);
     });
   });
+
+  describe('schedule command', () => {
+    it('should show schedule help', async () => {
+      const result = await handler.execute('/schedule help', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(true);
+      expect(result.response).toContain('定时任务帮助');
+      expect(result.response).toContain('list');
+      expect(result.response).toContain('create');
+      expect(result.response).toContain('cancel');
+    });
+
+    it('should list schedules (empty)', async () => {
+      const result = await handler.execute('/schedule list', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(true);
+      expect(result.response).toContain('没有定时任务');
+    });
+
+    it('should require subcommand', async () => {
+      const result = await handler.execute('/schedule', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Missing subcommand');
+    });
+
+    it('should reject invalid subcommand', async () => {
+      const result = await handler.execute('/schedule invalid', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.response).toContain('未知操作');
+    });
+
+    it('should reject create with insufficient args', async () => {
+      const result = await handler.execute('/schedule create once', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Insufficient arguments');
+    });
+
+    it('should reject invalid schedule type', async () => {
+      const result = await handler.execute('/schedule create invalid 1000 test', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid schedule type');
+    });
+
+    it('should require taskId for cancel', async () => {
+      const result = await handler.execute('/schedule cancel', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Missing task ID');
+    });
+
+    it('should report task not found when canceling non-existent task', async () => {
+      const result = await handler.execute('/schedule cancel non-existent-id', mockAgent);
+      
+      expect(result.type).toBe(CommandType.SCHEDULE);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Task not found');
+    });
+  });
 });
