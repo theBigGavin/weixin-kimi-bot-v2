@@ -120,13 +120,36 @@ export function initSchedulerManager(): SchedulerManager {
     if (agentId && userId) {
       const notifier = getTaskNotifier(agentId, userId);
       if (notifier) {
-        await notifier.dailyReport(`日报生成时间: ${new Date().toLocaleString()}`);
+        // Generate more meaningful report
+        const report = generateDailyReport();
+        await notifier.dailyReport(report);
       }
     }
   });
   
-  schedulerManager.registerHandler('health_check', async () => {
+  schedulerManager.registerHandler('health_check', async (data) => {
+    const agentId = data?.agentId as string;
+    const userId = data?.userId as string;
+    
     console.log('[Scheduler] Health check running...');
+    
+    // Perform system health checks
+    const checks = performHealthChecks();
+    
+    // If there are warnings, send notification
+    if (checks.warnings.length > 0) {
+      const message = checks.warnings.map(w => `⚠️ ${w}`).join('\n');
+      
+      if (agentId && userId) {
+        const notifier = getTaskNotifier(agentId, userId);
+        if (notifier) {
+          await notifier.healthCheckAlert(message);
+        }
+      }
+    }
+    
+    // Log stats
+    console.log(`[Scheduler] Health check: CPU ${checks.cpu}%, Memory ${checks.memory}%, Uptime ${checks.uptime}h`);
   });
   
   schedulerManager.start();
@@ -231,6 +254,74 @@ export function initCommandHandler(): CommandHandler {
 }
 
 export function getCommandHandler(): CommandHandler | null { return commandHandler; }
+
+// ============================================================================
+// Health Checks
+// ============================================================================
+
+interface HealthCheckResult {
+  cpu: number;
+  memory: number;
+  uptime: number;
+  warnings: string[];
+}
+
+import { getDailyStats } from './state.js';
+
+function generateDailyReport(): string {
+  const stats = getDailyStats();
+  const now = new Date();
+  const uptime = Math.round((now.getTime() - stats.startTime) / 3600000);
+  
+  const lines = [
+    `📊 系统日报`,
+    `生成时间: ${now.toLocaleString()}`,
+    ``,
+    `📨 消息统计:`,
+    `  接收消息: ${stats.messagesReceived} 条`,
+    `  执行命令: ${stats.commandsExecuted} 个`,
+    ``,
+    `✅ 任务统计:`,
+    `  完成任务: ${stats.tasksCompleted} 个`,
+    ``,
+    `⏱️ 系统状态:`,
+    `  运行时长: ${uptime} 小时`,
+    `  内存使用: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`,
+  ];
+  
+  // Reset stats for next period (optional - could keep cumulative)
+  // resetDailyStats();
+  
+  return lines.join('\n');
+}
+
+function performHealthChecks(): HealthCheckResult {
+  const warnings: string[] = [];
+  
+  // Memory check
+  const memUsage = process.memoryUsage();
+  const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const memTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+  const memPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+  
+  if (memPercent > 80) {
+    warnings.push(`内存使用率过高: ${memPercent}% (${memUsedMB}MB/${memTotalMB}MB)`);
+  }
+  
+  // Uptime
+  const uptimeHours = Math.round(process.uptime() / 3600);
+  
+  // CPU usage (simplified - just check if event loop is lagging)
+  const cpuUsage = process.cpuUsage();
+  const cpuPercent = Math.round((cpuUsage.user + cpuUsage.system) / 1000000);
+  
+  return {
+    cpu: cpuPercent,
+    memory: memPercent,
+    uptime: uptimeHours,
+    warnings,
+  };
+}
 
 // ============================================================================
 // Notification Service

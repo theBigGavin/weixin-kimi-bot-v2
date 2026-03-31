@@ -30,7 +30,7 @@ import {
   getTaskRouter,
   getAgent,
 } from '../init/managers.js';
-import { RESET_COMMANDS, SESSION_PAUSE_MS, SESSION_EXPIRED_ERRCODE } from '../init/state.js';
+import { RESET_COMMANDS, SESSION_PAUSE_MS, SESSION_EXPIRED_ERRCODE, recordMessageReceived } from '../init/state.js';
 import { extractText } from '../message-handlers/extract.js';
 import { executeDirect, executeLongTask, executeFlowTask, handleFlowTaskConfirmation } from '../message-handlers/execute.js';
 
@@ -216,6 +216,7 @@ async function handleMessage(
   const text: string = extractedText;
 
   console.log(`[${agentId}] 收到消息: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+  recordMessageReceived();
 
   const contextToken = getContextToken(agentId) ?? '';
 

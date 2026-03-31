@@ -38,3 +38,37 @@ export const dialogueCache = new Map<string, DialogueMessage[]>();
 
 // Track active flow tasks waiting for user confirmation
 export const waitingFlowTasks = new Map<string, { taskId: string; agentId: string }>();
+
+// ============================================================================
+// Daily Statistics (for daily report)
+// ============================================================================
+
+export const dailyStats = {
+  messagesReceived: 0,
+  commandsExecuted: 0,
+  tasksCompleted: 0,
+  startTime: Date.now(),
+};
+
+export function recordMessageReceived(): void {
+  dailyStats.messagesReceived++;
+}
+
+export function recordCommandExecuted(): void {
+  dailyStats.commandsExecuted++;
+}
+
+export function recordTaskCompleted(): void {
+  dailyStats.tasksCompleted++;
+}
+
+export function getDailyStats(): typeof dailyStats {
+  return { ...dailyStats };
+}
+
+export function resetDailyStats(): void {
+  dailyStats.messagesReceived = 0;
+  dailyStats.commandsExecuted = 0;
+  dailyStats.tasksCompleted = 0;
+  dailyStats.startTime = Date.now();
+}

@@ -7,6 +7,7 @@
 import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
 import { registry, CommandResult, CommandType, type CommandContext } from '../commands/index.js';
+import { recordCommandExecuted } from '../init/state.js';
 
 export { type CommandResult, type CommandContext, CommandType };
 
@@ -55,6 +56,7 @@ export class CommandHandler {
       
       if (result.success) {
         console.log(`[Command] └─ ✅ 成功 (${duration}ms)`);
+        recordCommandExecuted();
       } else {
         console.log(`[Command] └─ ❌ 失败 (${duration}ms): ${result.error || '未知错误'}`);
       }
