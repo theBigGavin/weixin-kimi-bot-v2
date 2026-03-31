@@ -11,11 +11,10 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "start": "node --import tsx src/index.ts",
-    "start:acp": "node --import tsx src/index-acp.ts",
     "login": "node --import tsx src/login.ts",
     "dev": "tsx src/index.ts",
-    "dev:acp": "tsx src/index-acp.ts",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "cleanup": "rm -rf ~/.weixin-kimi-bot/data"
   },
   "keywords": [
     "weixin",

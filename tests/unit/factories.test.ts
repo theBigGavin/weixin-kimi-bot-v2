@@ -176,32 +176,6 @@ describe('Task Router Module Factories', () => {
   });
 });
 
-describe('Kimi Module Factories', () => {
-  it('should export buildKimiCommand from kimi/client', async () => {
-    const { buildKimiCommand } = await import('../../src/kimi/client.js');
-    expect(buildKimiCommand).toBeDefined();
-    expect(typeof buildKimiCommand).toBe('function');
-  });
-
-  it('should export buildKimiCommand from kimi/executor', async () => {
-    const { buildKimiCommand } = await import('../../src/kimi/executor.js');
-    expect(buildKimiCommand).toBeDefined();
-    expect(typeof buildKimiCommand).toBe('function');
-  });
-
-  it('should export createKimiResponse', async () => {
-    const { createKimiResponse } = await import('../../src/kimi/types.js');
-    expect(createKimiResponse).toBeDefined();
-    expect(typeof createKimiResponse).toBe('function');
-  });
-
-  it('should export createKimiError', async () => {
-    const { createKimiError } = await import('../../src/kimi/types.js');
-    expect(createKimiError).toBeDefined();
-    expect(typeof createKimiError).toBe('function');
-  });
-});
-
 describe('iLink Module Factories', () => {
   it('should export createTextMessage', async () => {
     const { createTextMessage } = await import('../../src/ilink/client.js');

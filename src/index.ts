@@ -1,7 +1,7 @@
 /**
- * weixin-kimi-bot — Bridge WeChat messages to Kimi CLI via iLink protocol.
+ * weixin-kimi-bot — Bridge WeChat messages to Kimi via ACP protocol.
  *
- * Flow: WeChat → ILinkClient.poll() → Kimi CLI → ILinkClient.sendTextChunked() → WeChat
+ * Flow: WeChat → ILinkClient.poll() → ACP (kimi acp) → ILinkClient.sendTextChunked() → WeChat
  */
 
 import {
@@ -14,20 +14,42 @@ import {
   loadCredentials,
   loadConfig,
   loadContextTokens,
-  loadSessionIds,
   loadSyncBuf,
   saveSyncBuf,
   getContextToken,
   setContextToken,
-  getSessionId,
-  setSessionId,
-  clearSessionId,
 } from './config/index.js';
-import { executeKimi } from './kimi/executor.js';
+import { ACPManager } from './acp/index.js';
+import { CommandHandler } from './handlers/command-handler.js';
+import { createAgent } from './agent/types.js';
 
 const SESSION_EXPIRED_ERRCODE = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1000; // 1 hour
 const RESET_COMMANDS = new Set(['新对话', '/reset', '/clear']);
+
+// --- ACP Manager & Command Handler ---
+
+let acpManager: ACPManager | null = null;
+const commandHandler = new CommandHandler();
+
+/**
+ * Initialize ACP manager
+ */
+function initACPManager(): ACPManager {
+  if (acpManager) return acpManager;
+
+  acpManager = new ACPManager({
+    acpConfig: {
+      command: 'kimi',
+      args: ['acp'],
+      cwd: process.cwd(),
+    },
+    sessionTimeout: 30 * 60 * 1000, // 30 minutes
+    cleanupInterval: 5 * 60 * 1000, // 5 minutes
+  });
+
+  return acpManager;
+}
 
 // --- Message text extraction ---
 
@@ -36,7 +58,7 @@ const RESET_COMMANDS = new Set(['新对话', '/reset', '/clear']);
  */
 function extractText(msg: WeixinMessage): string {
   if (!msg.item_list?.length) return '';
-  
+
   for (const item of msg.item_list) {
     if (item.type === MessageItemType.TEXT && item.text_item?.text) {
       const ref = item.ref_msg;
@@ -91,9 +113,26 @@ async function handleMessage(
     }`
   );
 
+  // Check if it's a command
+  if (commandHandler.isCommand(text)) {
+    console.log(`  🔧 执行命令: ${text.trim()}`);
+    
+    // Create a mock agent for command handler
+    const agent = createAgent({
+      wechat: { accountId: fromUser },
+    });
+    
+    const result = await commandHandler.execute(text, agent);
+    await client.sendText(fromUser, result.response, contextToken);
+    console.log(`  ✅ 命令执行完成: ${result.type}`);
+    return;
+  }
+
   // Handle reset commands (multi-turn only)
   if (config.multiTurn && RESET_COMMANDS.has(text.trim())) {
-    clearSessionId(fromUser);
+    if (acpManager) {
+      await acpManager.closeUserSession(fromUser);
+    }
     await client.sendText(fromUser, '已开始新对话', contextToken);
     console.log(`  🔄 已重置 ${fromUser} 的会话`);
     return;
@@ -102,41 +141,41 @@ async function handleMessage(
   // Show typing indicator (non-blocking, non-critical)
   client.sendTyping(fromUser, contextToken).catch(() => {});
 
-  // Execute Kimi
+  // Execute via ACP
   const start = Date.now();
   try {
-    console.log(`  🤖 正在调用 Kimi...`);
-    
-    // Use user's WeChat ID as session ID for context persistence
-    const userSessionId = config.multiTurn ? fromUser : undefined;
-    
-    const result = await executeKimi({
-      prompt: text,
-      model: config.model,
-      cwd: config.cwd,
-      sessionId: userSessionId,
-      timeout: 120000, // 2 minutes
-    });
+    console.log(`  🤖 正在调用 Kimi (ACP)...`);
+
+    const manager = initACPManager();
+    const response = await manager.prompt(fromUser, { text });
 
     const duration = Date.now() - start;
     console.log(`  ✅ Kimi 响应完成 (${(duration / 1000).toFixed(1)}s)`);
 
-    if (result.error) {
-      throw new Error(result.error.message);
+    if (response.error) {
+      throw new Error(response.error);
     }
 
     // Send response back to WeChat
     const chunks = await client.sendTextChunked(
       fromUser,
-      result.text,
+      response.text,
       contextToken
     );
     console.log(
-      `  📤 已发送回复 (${result.text.length} chars, ${chunks} 条消息)`
+      `  📤 已发送回复 (${response.text.length} chars, ${chunks} 条消息)`
     );
+
+    // Log tool calls if any
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      console.log(`  🔧 工具调用: ${response.toolCalls.length} 次`);
+      for (const tool of response.toolCalls) {
+        console.log(`     - ${tool.title} (${tool.status})`);
+      }
+    }
   } catch (err) {
     console.error(`  ❌ 处理失败:`, err);
-    
+
     // Send error message back to user
     const errorMsg = err instanceof Error ? err.message : String(err);
     await client
@@ -171,25 +210,23 @@ async function main() {
   // Load config
   const config = loadConfig();
 
-  console.log('=== 微信 Kimi Bot 已启动 ===');
+  console.log('=== 微信 Kimi Bot (ACP 模式) 已启动 ===');
   console.log(`账号: ${creds.accountId}`);
   console.log(`Base URL: ${creds.baseUrl}`);
   console.log(`模型: ${config.model}`);
   console.log(`工作目录: ${config.cwd}`);
   console.log(`多轮对话: ${config.multiTurn ? '开启' : '关闭'}`);
-  if (config.systemPrompt)
-    console.log(
-      `系统提示: ${config.systemPrompt.substring(0, 60)}...`
-    );
   console.log('等待消息中...\n');
 
   // Restore state
   loadContextTokens();
-  loadSessionIds();
 
   // Graceful shutdown
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     console.log('\n\n正在关闭...');
+    if (acpManager) {
+      await acpManager.closeAll();
+    }
     process.exit(0);
   });
 
