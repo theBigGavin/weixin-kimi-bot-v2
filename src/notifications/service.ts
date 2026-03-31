@@ -121,7 +121,7 @@ export class NotificationService {
     }
 
     for (const channel of channelsToUse) {
-      if (notification.excludeChannels?.includes(channel)) {
+      if (!channel || notification.excludeChannels?.includes(channel)) {
         continue;
       }
 

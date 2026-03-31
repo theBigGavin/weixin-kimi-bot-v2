@@ -133,10 +133,11 @@ export function formatMemoryForPrompt(memories: Memory['facts']): string {
   // 按类别分组
   const byCategory: Record<string, Memory['facts']> = {};
   uniqueMemories.forEach(m => {
-    if (!byCategory[m.category]) {
-      byCategory[m.category] = [];
+    const category = m.category ?? 'general';
+    if (!byCategory[category]) {
+      byCategory[category] = [];
     }
-    byCategory[m.category].push(m);
+    byCategory[category].push(m);
   });
 
   // 格式化
@@ -211,9 +212,6 @@ export function buildPromptContext(
   const memoryContext = config.memory.enabledL && memories
     ? formatMemoryForPrompt(memories)
     : '';
-
-  // 格式化动态上下文
-  const formattedContext = context ? formatContextForPrompt(context) : '';
 
   // 可用工具列表
   const availableTools: string[] = [];

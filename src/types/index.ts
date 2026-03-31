@@ -299,18 +299,8 @@ export interface Reference {
   confidence: number;
 }
 
-/**
- * 任务提交
- */
-export interface TaskSubmission {
-  prompt: string;
-  userId: string;
-  chatId: string;
-  contextToken: string;
-  cwd: string;
-  model?: string;
-  systemPrompt?: string;
-}
+// TaskSubmission 统一从 task-router/types 导出
+export type { TaskSubmission } from '../task-router/types.js';
 
 /**
  * 任务决策

@@ -26,7 +26,7 @@ export class DecisionEngine {
    * @param analysis 任务分析
    * @returns 任务决策
    */
-  decide(submission: TaskSubmission, analysis: TaskAnalysis): TaskDecision {
+  decide(_submission: TaskSubmission, analysis: TaskAnalysis): TaskDecision {
     // 1. 判断是否为直接执行模式
     if (this.shouldUseDirectMode(analysis)) {
       return createTaskDecision({

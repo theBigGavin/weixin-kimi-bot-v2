@@ -10,11 +10,11 @@ import {
   PollingConfig,
   MessageHandler,
 } from '../../../src/services/message-polling';
-import { WeChatMessage } from '../../../src/ilink/types';
+import { ParsedWeixinMessage } from '../../../src/ilink/types';
 
 describe('message-polling-service', () => {
   let service: MessagePollingService;
-  let mockFetchMessages: () => Promise<WeChatMessage[]>;
+  let mockFetchMessages: () => Promise<ParsedWeixinMessage[]>;
   let mockMessageHandler: MessageHandler;
   let config: PollingConfig;
 
@@ -83,20 +83,24 @@ describe('message-polling-service', () => {
 
     it('should process received messages', async () => {
       // Given
-      const messages: WeChatMessage[] = [
+      const messages: ParsedWeixinMessage[] = [
         {
-          msgId: 'msg_1',
+          id: 'msg_1',
           fromUser: 'user1',
           content: 'Hello',
-          type: 1,
-          createTime: Date.now(),
+          type: 'text',
+          timestamp: Date.now(),
+          isGroup: false,
+          rawType: 1,
         },
         {
-          msgId: 'msg_2',
+          id: 'msg_2',
           fromUser: 'user2',
           content: 'World',
-          type: 1,
-          createTime: Date.now(),
+          type: 'text',
+          timestamp: Date.now(),
+          isGroup: false,
+          rawType: 1,
         },
       ];
       mockFetchMessages.mockResolvedValue(messages);
@@ -114,11 +118,11 @@ describe('message-polling-service', () => {
 
     it('should track last message ID', async () => {
       // Given
-      const messages1: WeChatMessage[] = [
-        { msgId: 'msg_1', fromUser: 'user1', content: 'Hello', type: 1, createTime: Date.now() },
+      const messages1: ParsedWeixinMessage[] = [
+        { id: 'msg_1', fromUser: 'user1', content: 'Hello', type: 'text', timestamp: Date.now(), isGroup: false, rawType: 1 },
       ];
-      const messages2: WeChatMessage[] = [
-        { msgId: 'msg_2', fromUser: 'user2', content: 'World', type: 1, createTime: Date.now() },
+      const messages2: ParsedWeixinMessage[] = [
+        { id: 'msg_2', fromUser: 'user2', content: 'World', type: 'text', timestamp: Date.now(), isGroup: false, rawType: 1 },
       ];
       
       mockFetchMessages
@@ -137,12 +141,14 @@ describe('message-polling-service', () => {
 
     it('should deduplicate messages by ID', async () => {
       // Given - same message returned in consecutive polls
-      const message: WeChatMessage = { 
-        msgId: 'msg_1', 
+      const message: ParsedWeixinMessage = { 
+        id: 'msg_1', 
         fromUser: 'user1', 
         content: 'Hello', 
-        type: 1, 
-        createTime: Date.now() 
+        type: 'text', 
+        timestamp: Date.now(), 
+        isGroup: false,
+        rawType: 1,
       };
       
       mockFetchMessages
@@ -226,7 +232,7 @@ describe('message-polling-service', () => {
       // Given
       mockMessageHandler.mockRejectedValue(new Error('Handler error'));
       mockFetchMessages.mockResolvedValue([
-        { msgId: 'msg_1', fromUser: 'user1', content: 'Hello', type: 1, createTime: Date.now() },
+        { id: 'msg_1', fromUser: 'user1', content: 'Hello', type: 'text', timestamp: Date.now(), isGroup: false, rawType: 1 },
       ]);
       
       service.start(mockMessageHandler);
@@ -244,8 +250,8 @@ describe('message-polling-service', () => {
     it('should track message statistics', async () => {
       // Given
       mockFetchMessages.mockResolvedValue([
-        { msgId: 'msg_1', fromUser: 'user1', content: 'Hello', type: 1, createTime: Date.now() },
-        { msgId: 'msg_2', fromUser: 'user2', content: 'World', type: 1, createTime: Date.now() },
+        { id: 'msg_1', fromUser: 'user1', content: 'Hello', type: 'text', timestamp: Date.now(), isGroup: false, rawType: 1 },
+        { id: 'msg_2', fromUser: 'user2', content: 'World', type: 'text', timestamp: Date.now(), isGroup: false, rawType: 1 },
       ]);
       
       service.start(mockMessageHandler);

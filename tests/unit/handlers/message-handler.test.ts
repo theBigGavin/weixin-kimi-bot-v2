@@ -13,14 +13,16 @@ import {
 import { Agent } from '../../../src/agent/types';
 import { SessionContext } from '../../../src/context/session-context';
 import { CommandHandler } from '../../../src/handlers/command-handler';
-import { TaskRouter } from '../../../src/task-router/decision';
+import { DecisionEngine } from '../../../src/task-router/decision';
+import { TaskAnalyzer } from '../../../src/task-router/analyzer';
 
 describe('message-handler', () => {
   let handler: MessageHandler;
   let mockAgent: Agent;
   let mockSessionContext: SessionContext;
   let mockCommandHandler: CommandHandler;
-  let mockTaskRouter: TaskRouter;
+  let mockTaskRouter: DecisionEngine;
+  let mockTaskAnalyzer: TaskAnalyzer;
 
   beforeEach(() => {
     mockAgent = {
@@ -64,11 +66,14 @@ describe('message-handler', () => {
     } as unknown as CommandHandler;
 
     mockTaskRouter = {
-      analyze: vi.fn(),
       decide: vi.fn(),
-    } as unknown as TaskRouter;
+    } as unknown as DecisionEngine;
 
-    handler = new MessageHandler(mockCommandHandler, mockTaskRouter);
+    mockTaskAnalyzer = {
+      analyze: vi.fn(),
+    } as unknown as TaskAnalyzer;
+
+    handler = new MessageHandler(mockCommandHandler, mockTaskRouter, mockTaskAnalyzer);
   });
 
   describe('process', () => {
@@ -94,13 +99,13 @@ describe('message-handler', () => {
       // Given
       const message = 'Hello, how are you?';
       vi.mocked(mockCommandHandler.isCommand).mockReturnValue(false);
-      vi.mocked(mockTaskRouter.analyze).mockReturnValue({
+      vi.mocked(mockTaskAnalyzer.analyze).mockReturnValue({
         complexity: 'SIMPLE',
         estimatedDuration: 1000,
         features: {},
       });
       vi.mocked(mockTaskRouter.decide).mockReturnValue({
-        mode: 'DIRECT',
+        mode: 'direct',
         confidence: 0.9,
         reason: 'Simple query',
         analysis: {},
@@ -111,20 +116,20 @@ describe('message-handler', () => {
 
       // Then
       expect(result.type).toBe('chat');
-      expect(result.mode).toBe('DIRECT');
+      expect(result.mode).toBe('direct');
     });
 
     it('should sanitize input message', async () => {
       // Given
       const message = '  hello   world  \x00';
       vi.mocked(mockCommandHandler.isCommand).mockReturnValue(false);
-      vi.mocked(mockTaskRouter.analyze).mockReturnValue({
+      vi.mocked(mockTaskAnalyzer.analyze).mockReturnValue({
         complexity: 'SIMPLE',
         estimatedDuration: 1000,
         features: {},
       });
       vi.mocked(mockTaskRouter.decide).mockReturnValue({
-        mode: 'DIRECT',
+        mode: 'direct',
         confidence: 0.9,
         reason: 'Simple query',
         analysis: {},
@@ -134,7 +139,7 @@ describe('message-handler', () => {
       await handler.process(message, mockAgent, mockSessionContext);
 
       // Then
-      expect(mockTaskRouter.analyze).toHaveBeenCalledWith(
+      expect(mockTaskAnalyzer.analyze).toHaveBeenCalledWith(
         expect.objectContaining({ prompt: 'hello world' })
       );
     });
@@ -156,7 +161,7 @@ describe('message-handler', () => {
       const message = 'a'.repeat(10001);
       // Mock the router methods to avoid undefined errors in case validation passes
       vi.mocked(mockTaskRouter.decide).mockReturnValue({
-        mode: 'DIRECT',
+        mode: 'direct',
         confidence: 0.9,
         reason: 'Test',
         analysis: {},
@@ -174,13 +179,13 @@ describe('message-handler', () => {
       // Given
       const message = 'Test message';
       vi.mocked(mockCommandHandler.isCommand).mockReturnValue(false);
-      vi.mocked(mockTaskRouter.analyze).mockReturnValue({
+      vi.mocked(mockTaskAnalyzer.analyze).mockReturnValue({
         complexity: 'SIMPLE',
         estimatedDuration: 1000,
         features: {},
       });
       vi.mocked(mockTaskRouter.decide).mockReturnValue({
-        mode: 'DIRECT',
+        mode: 'direct',
         confidence: 0.9,
         reason: 'Simple query',
         analysis: {},

@@ -4,7 +4,7 @@
  * 解析用户消息中的指代引用（如"方案1"、"这个"、"刚才的"等）
  */
 
-import { ReferenceType, ResolvedReference, Option, SessionContext } from './types.js';
+import { ReferenceType, ResolvedReference, SessionContext } from './types.js';
 
 /**
  * 指代消解结果

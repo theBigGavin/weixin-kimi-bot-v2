@@ -9,8 +9,10 @@ import { Agent } from '../agent/types.js';
 import type { SessionContext } from '../context/types.js';
 import { CommandHandler } from './command-handler.js';
 import { DecisionEngine } from '../task-router/decision.js';
+import { TaskAnalyzer } from '../task-router/analyzer.js';
 import type { TaskSubmission } from '../types/index.js';
-import { sanitizeInput, isCommandMessage } from './message-utils.js';
+import { sanitizeInput } from './message-utils.js';
+import { ExecutionMode } from '../task-router/types.js';
 
 export interface HandlerContext {
   message: string;
@@ -36,10 +38,15 @@ interface ValidationResult {
 const MAX_MESSAGE_LENGTH = 10000;
 
 export class MessageHandler {
+  private taskAnalyzer: TaskAnalyzer;
+
   constructor(
     private commandHandler: CommandHandler,
-    private taskRouter: DecisionEngine
-  ) {}
+    private taskRouter: DecisionEngine,
+    taskAnalyzer?: TaskAnalyzer
+  ) {
+    this.taskAnalyzer = taskAnalyzer || new TaskAnalyzer();
+  }
 
   /**
    * Process an incoming message
@@ -59,7 +66,7 @@ export class MessageHandler {
     }
 
     const sanitizedMessage = validation.sanitizedMessage!;
-    const context = this.createContext(sanitizedMessage, agent, session);
+    this.createContext(sanitizedMessage, agent, session);
 
     // Check if it's a command
     if (this.commandHandler.isCommand(sanitizedMessage)) {
@@ -164,7 +171,7 @@ export class MessageHandler {
     };
 
     // Analyze task
-    const analysis = this.taskRouter.analyze(submission);
+    const analysis = this.taskAnalyzer.analyze(submission);
 
     // Make routing decision
     const decision = this.taskRouter.decide(submission, analysis);
@@ -179,7 +186,7 @@ export class MessageHandler {
     session.lastActivityAt = Date.now();
 
     return {
-      type: decision.mode === 'DIRECT' ? 'chat' : 'task',
+      type: decision.mode === ExecutionMode.DIRECT ? 'chat' : 'task',
       mode: decision.mode,
       response: `Task analyzed: ${decision.reason}`,
     };

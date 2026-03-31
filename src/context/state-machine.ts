@@ -190,7 +190,7 @@ export class ConversationStateMachine {
    */
   private getPendingDecision(
     state: ConversationState,
-    intent: Intent
+    _intent: Intent
   ): StateContext['pendingDecision'] {
     switch (state) {
       case ConversationState.CONFIRMING:

@@ -22,13 +22,12 @@ export class ACPClient {
   private process?: ChildProcess;
   private connection?: acp.ClientSideConnection;
   private status: ACPConnectionStatus = 'disconnected';
-  private sessionId?: string;
   private responseBuffer: string = '';
   private toolCalls: Array<{
     id: string;
     title: string;
     kind: string;
-    status: string;
+    status: 'pending' | 'completed' | 'failed';
     input: unknown;
     output?: unknown;
   }> = [];
@@ -114,7 +113,7 @@ export class ACPClient {
       mcpServers: config.mcpServers || [],
     });
 
-    this.sessionId = response.sessionId;
+    // Session established
     return response.sessionId;
   }
 
@@ -169,7 +168,7 @@ export class ACPClient {
 
     this.connection = undefined;
     this.status = 'disconnected';
-    this.sessionId = undefined;
+    // Session cleared
   }
 
   /**
@@ -201,16 +200,16 @@ export class ACPClient {
           }
         } else if (update.sessionUpdate === 'tool_call') {
           this.toolCalls.push({
-            id: update.toolCallId,
-            title: update.title,
-            kind: update.kind,
-            status: update.status,
+            id: update.toolCallId!,
+            title: update.title!,
+            kind: update.kind!,
+            status: (update.status as 'pending' | 'completed' | 'failed') ?? 'pending',
             input: update.rawInput,
           });
         } else if (update.sessionUpdate === 'tool_call_update') {
           const toolCall = this.toolCalls.find((t) => t.id === update.toolCallId);
-          if (toolCall) {
-            toolCall.status = update.status;
+          if (toolCall && update.status) {
+            toolCall.status = update.status as 'pending' | 'completed' | 'failed';
             toolCall.output = update.rawOutput;
           }
         }
@@ -238,7 +237,7 @@ export class ACPClient {
         params: acp.ReadTextFileRequest
       ): Promise<acp.ReadTextFileResponse> => {
         const fs = await import('node:fs/promises');
-        const content = await fs.readFile(params.uri, 'utf-8');
+        const content = await fs.readFile(params.path!, 'utf-8');
         return { content };
       },
 

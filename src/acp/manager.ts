@@ -5,7 +5,7 @@
  */
 
 import { ACPClient } from './client.js';
-import type { ACPConfig, ACPSessionConfig, ACPPrompt, ACPResponse } from './types.js';
+import type { ACPConfig, ACPPrompt, ACPResponse } from './types.js';
 
 /**
  * User session mapping

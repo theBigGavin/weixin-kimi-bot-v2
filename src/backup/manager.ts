@@ -378,7 +378,6 @@ export class BackupManager {
         
         if (existsSync(sourcePath)) {
           const bindings = JSON.parse(await readFile(sourcePath, 'utf-8'));
-          const _wechatId = bindings.wechatId;
           
           // 恢复绑定关系到存储
           const wechatDir = join(Paths.wechatAccountsDir, prefix);

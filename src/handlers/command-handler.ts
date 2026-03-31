@@ -159,7 +159,7 @@ export class CommandHandler {
     };
   }
 
-  private handleTemplate(args: string[], agent: Agent): CommandResult {
+  private handleTemplate(args: string[], _agent: Agent): CommandResult {
     if (args.length === 0) {
       return {
         type: CommandType.TEMPLATE,
@@ -201,7 +201,7 @@ export class CommandHandler {
     };
   }
 
-  private handleMemory(args: string[], agent: Agent): CommandResult {
+  private handleMemory(args: string[], _agent: Agent): CommandResult {
     const action = args[0]?.toLowerCase();
     
     if (action !== 'on' && action !== 'off') {
@@ -223,7 +223,7 @@ export class CommandHandler {
     };
   }
 
-  private handleTask(args: string[], agent: Agent): CommandResult {
+  private handleTask(args: string[], _agent: Agent): CommandResult {
     const action = args[0] || 'list';
 
     return {

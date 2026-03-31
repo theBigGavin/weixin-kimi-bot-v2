@@ -179,7 +179,7 @@ const GENERAL_DEFAULTS = {
  */
 function shouldApplyTemplateValue(
   configValue: unknown,
-  templateValue: unknown,
+  _templateValue: unknown,
   field: string
 ): boolean {
   // 如果是undefined/null，应用模板值

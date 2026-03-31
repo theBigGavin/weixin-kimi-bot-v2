@@ -87,16 +87,48 @@ export function saveCredentials(creds: Omit<Credentials, 'savedAt'>): void {
 }
 
 /**
- * Load credentials from secure storage
- * @returns Credentials if they exist, null otherwise
+ * Load credentials for a specific Agent
+ * @param agentId Agent ID
+ * @returns Credentials if found, null otherwise
  */
-export function loadCredentials(): Credentials | null {
+export function loadCredentialsForAgent(agentId: string): Credentials | null {
+  const credsPath = path.join(getStateDir(), 'agents', agentId, 'credentials.json');
+  
   try {
-    const filePath = credentialsPath();
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = fs.readFileSync(credsPath, 'utf-8');
     return JSON.parse(raw) as Credentials;
   } catch {
-    // Return null if file doesn't exist or is corrupted
     return null;
   }
+}
+
+/**
+ * Load all credentials from all Agents
+ * @returns Map of agentId -> Credentials
+ */
+export function loadAllCredentials(): Map<string, Credentials> {
+  const result = new Map<string, Credentials>();
+  const agentsDir = path.join(getStateDir(), 'agents');
+  
+  try {
+    const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const agentId = entry.name;
+        const credsPath = path.join(agentsDir, agentId, 'credentials.json');
+        try {
+          const raw = fs.readFileSync(credsPath, 'utf-8');
+          const creds = JSON.parse(raw) as Credentials;
+          result.set(agentId, creds);
+        } catch {
+          // Skip invalid credentials
+        }
+      }
+    }
+  } catch {
+    // Agents directory doesn't exist or can't be read
+  }
+  
+  return result;
 }

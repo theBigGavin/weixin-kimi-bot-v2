@@ -112,7 +112,7 @@ export class MessagePollingService {
       this.errorCount = 0;
 
       // Filter out already processed messages
-      const newMessages = messages.filter(msg => !this.processedIds.has(msg.msgId));
+      const newMessages = messages.filter(msg => !this.processedIds.has(msg.id));
       
       this.stats.messagesReceived += newMessages.length;
 
@@ -128,8 +128,8 @@ export class MessagePollingService {
         }
 
         // Track processed ID
-        this.processedIds.add(message.msgId);
-        this.lastMessageId = message.msgId;
+        this.processedIds.add(message.id);
+        this.lastMessageId = message.id;
       }
 
       // Limit processed IDs set size

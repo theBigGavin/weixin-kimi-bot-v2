@@ -6,12 +6,10 @@
  */
 
 import { Store } from '../store.js';
-import { Paths } from '../paths.js';
 import {
   WechatAccount,
   WechatBindings,
   WechatCredentials,
-  AgentBinding,
   BindingStatus,
   BindingResult,
   createWechatAccount,

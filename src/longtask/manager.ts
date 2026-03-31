@@ -2,7 +2,7 @@
  * 长任务管理器
  */
 
-import { LongTask, LongTaskStatus, ProgressInfo, createLongTaskId } from './types.js';
+import { LongTask, LongTaskStatus, createLongTaskId } from './types.js';
 import { TaskSubmission } from '../task-router/types.js';
 
 export class LongTaskManager {

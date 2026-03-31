@@ -7,7 +7,8 @@
 // Credentials
 export {
   saveCredentials,
-  loadCredentials,
+  loadCredentialsForAgent,
+  loadAllCredentials,
   type Credentials,
 } from './credentials.js';
 

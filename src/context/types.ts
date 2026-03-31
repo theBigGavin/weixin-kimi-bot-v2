@@ -159,6 +159,7 @@ export interface SessionContext {
   topicStack: string[];
   createdAt: number;
   updatedAt: number;
+  lastActivityAt: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -232,6 +233,7 @@ export function createSessionContext(
     topicStack: [],
     createdAt: now,
     updatedAt: now,
+    lastActivityAt: now,
   };
 }
 
