@@ -6,9 +6,10 @@
 
 import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
-import { readFile, writeFile } from 'fs/promises';
-import { Paths } from '../paths.js';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { MemoryManager, createFactId } from '../memory/index.js';
+import type { MemoryFact } from '../memory/index.js';
 
 export enum CommandType {
   HELP = 'help',
@@ -72,8 +73,8 @@ const AVAILABLE_COMMANDS: CommandInfo[] = [
   },
   {
     name: 'memory',
-    description: '查看或编辑Agent记忆',
-    usage: '/memory [update <内容> | clear]',
+    description: '查看或编辑Agent记忆（支持自动提取）',
+    usage: '/memory [update <内容> | search <关键词> | stats | toggle | clear]',
   },
   {
     name: 'task',
@@ -225,53 +226,30 @@ export class CommandHandler {
   private async handleMemory(args: string[], agent: Agent): Promise<CommandResult> {
     const action = args[0]?.toLowerCase();
     
-    // 获取 memory.json 路径
-    const memoryPath = Paths.agentMemory(agent.id);
+    // 初始化记忆管理器
+    const memManager = new MemoryManager({
+      baseDir: process.env.WEIXIN_KIMI_BOT_HOME || require('os').homedir() + '/.weixin-kimi-bot'
+    });
     
     try {
-      // 读取现有记忆
-      let memoryData: { items: string[]; enabled: boolean; updatedAt?: number } = { 
-        items: [], 
-        enabled: agent.memory.enabledL 
-      };
-      
-      try {
-        const content = await readFile(memoryPath, 'utf-8');
-        memoryData = JSON.parse(content);
-      } catch {
-        // 文件不存在，使用默认值
-      }
+      // 加载当前记忆
+      let memory = await memManager.loadMemory(agent.id, agent.name);
       
       // 不带参数：显示当前记忆
       if (!action) {
-        const items = memoryData.items || [];
-        if (items.length === 0) {
-          return {
-            type: CommandType.MEMORY,
-            success: true,
-            response: '📭 当前没有记忆内容\n\n用法：\n• /memory - 查看记忆\n• /memory update <内容> - 添加/更新记忆',
-          };
-        }
-        
-        let response = `🧠 Agent 记忆 (${items.length} 条)\n==================\n\n`;
-        items.forEach((item, index) => {
-          response += `${index + 1}. ${item}\n`;
-        });
-        response += '\n💡 使用 /memory update <内容> 添加新记忆';
-        
+        const display = memManager.formatMemoryForDisplay(memory);
         return {
           type: CommandType.MEMORY,
           success: true,
-          response,
-          data: { items },
+          response: display,
         };
       }
       
-      // update 操作：更新记忆
-      if (action === 'update') {
-        const newItem = args.slice(1).join(' ').trim();
+      // update 操作：添加事实记忆
+      if (action === 'update' || action === 'add') {
+        const content = args.slice(1).join(' ').trim();
         
-        if (!newItem) {
+        if (!content) {
           return {
             type: CommandType.MEMORY,
             success: false,
@@ -280,29 +258,42 @@ export class CommandHandler {
           };
         }
         
-        // 添加到记忆列表
-        if (!memoryData.items) {
-          memoryData.items = [];
-        }
-        memoryData.items.push(newItem);
-        memoryData.updatedAt = Date.now();
+        // 创建新事实
+        const now = Date.now();
+        const newFact: MemoryFact = {
+          id: createFactId(),
+          content,
+          category: 'personal',
+          importance: 3,
+          createdAt: now,
+          updatedAt: now,
+        };
         
-        // 保存到文件
-        await writeFile(memoryPath, JSON.stringify(memoryData, null, 2), 'utf-8');
+        // 添加到记忆
+        memory.facts.push(newFact);
+        
+        // 保存
+        await memManager.saveMemory(memory);
         
         return {
           type: CommandType.MEMORY,
           success: true,
-          response: `✅ 记忆已添加\n\n📝 ${newItem}\n\n当前共有 ${memoryData.items.length} 条记忆`,
-          data: { item: newItem, total: memoryData.items.length },
+          response: `✅ 记忆已添加\n\n📝 ${content}\n\n当前共有 ${memory.facts.length} 条重要事实`,
+          data: { 
+            fact: newFact,
+            total: memory.facts.length 
+          },
         };
       }
       
       // clear 操作：清空记忆
       if (action === 'clear') {
-        memoryData.items = [];
-        memoryData.updatedAt = Date.now();
-        await writeFile(memoryPath, JSON.stringify(memoryData, null, 2), 'utf-8');
+        memory.facts = [];
+        memory.projects = [];
+        memory.learning = [];
+        memory.userProfile = { preferences: [], expertise: [], habits: [] };
+        
+        await memManager.saveMemory(memory);
         
         return {
           type: CommandType.MEMORY,
@@ -311,19 +302,102 @@ export class CommandHandler {
         };
       }
       
-      // 旧版 on/off 支持（仅显示提示）
+      // search 操作：搜索记忆
+      if (action === 'search') {
+        const keyword = args.slice(1).join(' ').trim();
+        
+        if (!keyword) {
+          return {
+            type: CommandType.MEMORY,
+            success: false,
+            response: '❌ 请提供搜索关键词。用法: /memory search <关键词>',
+            error: 'Missing keyword',
+          };
+        }
+        
+        const { facts, projects } = await import('../memory/index.js').then(m => 
+          m.searchMemory(memory, keyword)
+        );
+        
+        let response = `🔍 搜索结果 "${keyword}"\n==================\n\n`;
+        
+        if (facts.length > 0) {
+          response += `📌 相关事实 (${facts.length}):\n`;
+          facts.forEach((f, i) => {
+            response += `  ${i + 1}. ${f.content}\n`;
+          });
+          response += '\n';
+        }
+        
+        if (projects.length > 0) {
+          response += `📁 相关项目 (${projects.length}):\n`;
+          projects.forEach((p, i) => {
+            response += `  ${i + 1}. ${p.name}\n`;
+          });
+        }
+        
+        if (facts.length === 0 && projects.length === 0) {
+          response += '未找到相关记忆';
+        }
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response,
+          data: { facts, projects },
+        };
+      }
+      
+      // toggle 操作：开关自动提取
+      if (action === 'toggle') {
+        memory.config.autoExtract = !memory.config.autoExtract;
+        await memManager.saveMemory(memory);
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response: `💡 自动记忆提取已${memory.config.autoExtract ? '开启' : '关闭'}`,
+          data: { autoExtract: memory.config.autoExtract },
+        };
+      }
+      
+      // stats 操作：显示统计
+      if (action === 'stats') {
+        const stats = memManager.getMemoryStats(memory);
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response: `📊 记忆统计\n==================\n\n` +
+            `📌 重要事实: ${stats.factCount}\n` +
+            `📁 项目: ${stats.projectCount}\n` +
+            `📚 学习记录: ${stats.learningCount}\n` +
+            `🔄 自动提取: ${memory.config.autoExtract ? '开启' : '关闭'}\n` +
+            `📝 提取次数: ${memory.metadata.extractionCount}\n` +
+            `⏰ 上次更新: ${new Date(stats.lastUpdate).toLocaleString()}`,
+          data: stats,
+        };
+      }
+      
+      // 旧版 on/off 支持
       if (action === 'on' || action === 'off') {
         return {
           type: CommandType.MEMORY,
           success: true,
-          response: `💡 记忆功能已${action === 'on' ? '开启' : '关闭'}\n\n新用法：\n• /memory - 查看记忆\n• /memory update <内容> - 添加记忆\n• /memory clear - 清空记忆`,
+          response: `💡 新用法：\n• /memory - 查看完整记忆\n• /memory update <内容> - 添加事实\n• /memory search <关键词> - 搜索\n• /memory stats - 统计信息\n• /memory toggle - 开关自动提取\n• /memory clear - 清空记忆`,
         };
       }
       
       return {
         type: CommandType.MEMORY,
         success: false,
-        response: '❌ 未知操作。用法:\n• /memory - 查看记忆\n• /memory update <内容> - 添加记忆\n• /memory clear - 清空记忆',
+        response: '❌ 未知操作。用法:\n' +
+          '• /memory - 查看记忆\n' +
+          '• /memory update <内容> - 添加事实\n' +
+          '• /memory search <关键词> - 搜索\n' +
+          '• /memory stats - 统计\n' +
+          '• /memory toggle - 开关自动提取\n' +
+          '• /memory clear - 清空',
         error: 'Invalid action',
       };
     } catch (error) {

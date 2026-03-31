@@ -4,7 +4,8 @@
  * 负责构建和格式化系统提示词、上下文信息等
  */
 
-import { AgentConfig, CapabilityTemplate, Memory } from '../types/index.js';
+import { AgentConfig, CapabilityTemplate } from '../types/index.js';
+import type { MemoryFact } from '../memory/index.js';
 
 /**
  * 提示词上下文选项
@@ -50,7 +51,7 @@ export interface PromptContextResult {
 export function buildSystemPrompt(
   config: AgentConfig,
   template: CapabilityTemplate,
-  memories?: Memory['facts'],
+  memories?: MemoryFact[],
   options: PromptBuildOptions = {}
 ): string {
   const parts: string[] = [];
@@ -117,7 +118,7 @@ export function buildWelcomeMessage(template: CapabilityTemplate): string {
  * @param memories 记忆列表
  * @returns 格式化后的记忆字符串
  */
-export function formatMemoryForPrompt(memories: Memory['facts']): string {
+export function formatMemoryForPrompt(memories: MemoryFact[]): string {
   if (!memories || memories.length === 0) {
     return '';
   }
@@ -131,7 +132,7 @@ export function formatMemoryForPrompt(memories: Memory['facts']): string {
   });
 
   // 按类别分组
-  const byCategory: Record<string, Memory['facts']> = {};
+  const byCategory: Record<string, MemoryFact[]> = {};
   uniqueMemories.forEach(m => {
     const category = m.category ?? 'general';
     if (!byCategory[category]) {
@@ -201,7 +202,7 @@ export function formatContextForPrompt(context: PromptContext): string {
 export function buildPromptContext(
   config: AgentConfig,
   template: CapabilityTemplate,
-  memories?: Memory['facts'],
+  memories?: MemoryFact[],
   context?: PromptContext,
   options: PromptBuildOptions = {}
 ): PromptContextResult {

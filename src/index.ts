@@ -32,6 +32,9 @@ import { TaskRouter, ExecutionMode, createTaskSubmission, TaskPriority } from '.
 import { LongTaskManager } from './longtask/manager.js';
 import { FlowTaskManager } from './flowtask/manager.js';
 
+// Memory System
+import { MemoryManager, MemoryExtractor, type DialogueMessage } from './memory/index.js';
+
 const SESSION_EXPIRED_ERRCODE = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1000; // 1 hour
 const RESET_COMMANDS = new Set(['新对话', '/reset', '/clear']);
@@ -46,7 +49,12 @@ let agentManager: AgentManager | null = null;
 let taskRouter: TaskRouter | null = null;
 let longTaskManager: LongTaskManager | null = null;
 let flowTaskManager: FlowTaskManager | null = null;
+let memoryManager: MemoryManager | null = null;
+let memoryExtractor: MemoryExtractor | null = null;
 const commandHandler = new CommandHandler();
+
+// In-memory dialogue cache for memory extraction (userId -> messages)
+const dialogueCache = new Map<string, DialogueMessage[]>();
 
 // Track active flow tasks waiting for user confirmation
 const waitingFlowTasks = new Map<string, { taskId: string; agentId: string }>();
@@ -82,6 +90,28 @@ function initTaskRouter(): TaskRouter {
   if (taskRouter) return taskRouter;
   taskRouter = new TaskRouter();
   return taskRouter;
+}
+
+function initMemoryManager(): MemoryManager {
+  if (memoryManager) return memoryManager;
+  
+  memoryManager = new MemoryManager({
+    baseDir: getBaseDir(),
+  });
+  
+  return memoryManager;
+}
+
+function initMemoryExtractor(): MemoryExtractor {
+  if (memoryExtractor) return memoryExtractor;
+  
+  memoryExtractor = new MemoryExtractor({
+    enabled: true,
+    minDialogLength: 3,
+    maxFactsPerExtraction: 3,
+  });
+  
+  return memoryExtractor;
 }
 
 async function initLongTaskManager(store: FileStore): Promise<LongTaskManager> {
@@ -206,6 +236,21 @@ async function executeDirect(
   console.log(`[${agentId}] 🚀 DIRECT mode execution`);
   
   const start = Date.now();
+  
+  // Record user message in dialogue cache
+  let dialogue = dialogueCache.get(fromUser) || [];
+  dialogue.push({
+    role: 'user',
+    content: text,
+    timestamp: Date.now(),
+  });
+  
+  // Limit dialogue cache size (keep last 20 messages)
+  if (dialogue.length > 20) {
+    dialogue = dialogue.slice(-20);
+  }
+  dialogueCache.set(fromUser, dialogue);
+  
   try {
     const manager = initACPManager();
     const response = await manager.prompt(fromUser, { text });
@@ -216,6 +261,14 @@ async function executeDirect(
     if (response.error) {
       throw new Error(response.error);
     }
+
+    // Record assistant response in dialogue cache
+    dialogue.push({
+      role: 'assistant',
+      content: response.text,
+      timestamp: Date.now(),
+    });
+    dialogueCache.set(fromUser, dialogue);
 
     // Send response back to WeChat
     const chunks = await client.sendTextChunked(
@@ -234,12 +287,105 @@ async function executeDirect(
         console.log(`     - ${tool.title} (${tool.status})`);
       }
     }
+
+    // Trigger memory extraction after successful dialogue
+    await extractAndSaveMemory(fromUser, agentId);
+
   } catch (err) {
     console.error(`[${agentId}] ❌ 处理失败:`, err);
     const errorMsg = err instanceof Error ? err.message : String(err);
     await client
       .sendText(fromUser, `处理消息时出错: ${errorMsg}`, contextToken)
       .catch(() => {});
+  }
+}
+
+/**
+ * Extract and save memory from dialogue
+ * Automatically extracts important information and saves to memory
+ */
+async function extractAndSaveMemory(
+  userId: string,
+  agentId: string
+): Promise<void> {
+  try {
+    const extractor = initMemoryExtractor();
+    const memManager = initMemoryManager();
+    
+    // Get dialogue history
+    const dialogue = dialogueCache.get(userId) || [];
+    
+    // Check if should extract
+    if (!extractor.shouldExtract(dialogue)) {
+      return;
+    }
+    
+    // Get agent info
+    const agent = await getAgent(agentId, userId);
+    if (!agent) {
+      console.log(`[Memory] Agent not found: ${agentId}`);
+      return;
+    }
+    
+    // Load current memory
+    let memory = await memManager.loadMemory(agentId, agent.name);
+    
+    // Check if auto-extract is enabled
+    if (!memory.config.autoExtract) {
+      return;
+    }
+    
+    console.log(`[Memory] Extracting memory for ${agentId}...`);
+    
+    // Build extraction prompt and call LLM
+    // Note: We use a lightweight extraction via ACP
+    const extractionPrompt = extractor.buildExtractionPrompt(dialogue);
+    
+    try {
+      // Use ACP manager for extraction (reuse connection)
+      const acp = initACPManager();
+      const extractionResult = await acp.prompt(userId, { 
+        text: extractionPrompt,
+        // Use a simpler model/config for extraction if available
+      });
+      
+      if (extractionResult.error) {
+        console.error('[Memory] Extraction failed:', extractionResult.error);
+        return;
+      }
+      
+      // Parse extraction result
+      const extraction = extractor.parseExtractionResult(extractionResult.text);
+      
+      // Check if anything was extracted
+      const totalExtracted = 
+        (extraction.facts?.length || 0) + 
+        (extraction.projects?.length || 0) + 
+        (extraction.learnings?.length || 0);
+      
+      if (totalExtracted === 0) {
+        console.log('[Memory] No new information to extract');
+        return;
+      }
+      
+      // Merge into existing memory
+      memory = extractor.mergeIntoMemory(memory, extraction);
+      
+      // Save updated memory
+      await memManager.saveMemory(memory);
+      
+      console.log(`[Memory] Saved: ${extraction.facts?.length || 0} facts, ${extraction.projects?.length || 0} projects`);
+      
+      // Clear dialogue cache after successful extraction
+      dialogueCache.delete(userId);
+      
+    } catch (extractErr) {
+      console.error('[Memory] Extraction error:', extractErr);
+    }
+    
+  } catch (err) {
+    console.error('[Memory] Failed to extract/save memory:', err);
+    // Don't throw - memory extraction should not break the main flow
   }
 }
 
