@@ -283,14 +283,12 @@ export class CommandHandler {
     try {
       const cwd = process.cwd();
       
-      // 定义要读取的关键文件
+      // 定义要读取的关键文件（避免过大的文件）
       const filesToRead = [
-        { path: 'README.md', desc: '项目概览', priority: 'high' },
-        { path: 'AGENTS.md', desc: '项目指南', priority: 'high' },
-        { path: 'package.json', desc: '依赖配置', priority: 'medium' },
-        { path: 'tsconfig.json', desc: 'TypeScript配置', priority: 'medium' },
-        { path: 'docs/architecture/architecture-overview.md', desc: '架构文档', priority: 'high' },
-        { path: 'docs/architecture/TDD_REDVELOPMENT_GUIDE.md', desc: '开发指南', priority: 'high' },
+        { path: 'README.md', desc: '项目概览', priority: 'high', maxLength: 2000 },
+        { path: 'AGENTS.md', desc: '项目指南', priority: 'high', maxLength: 2000 },
+        { path: 'package.json', desc: '依赖配置', priority: 'medium', maxLength: 1000 },
+        { path: 'docs/architecture/architecture-overview.md', desc: '架构文档', priority: 'high', maxLength: 1500 },
       ];
 
       // 发送初始进度通知
@@ -298,9 +296,11 @@ export class CommandHandler {
         await onProgress(
           `🚀 开始项目初始化\n` +
           `Agent: ${agent.name}\n` +
-          `共需学习 ${filesToRead.length} 个文件...\n\n` +
-          `开始学习：`
+          `共 ${filesToRead.length} 个文件（精简版）\n\n` +
+          `开始学习...`
         );
+        // 初始延迟，确保消息顺序
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       let projectContext = `📋 项目交接文档\n================\n\n`;
@@ -325,9 +325,10 @@ export class CommandHandler {
           const content = await readFile(join(cwd, file.path), 'utf-8');
           loadedCount++;
           
-          // 截断过长内容，保留关键部分
-          const truncated = content.length > 3000 
-            ? content.substring(0, 3000) + '\n\n...[内容已截断，完整内容请查看文件]' 
+          // 根据文件类型截断，避免消息过长
+          const maxLen = (file as {maxLength?: number}).maxLength || 1500;
+          const truncated = content.length > maxLen 
+            ? content.substring(0, maxLen) + '\n\n...[内容已截断，完整内容请查看文件]' 
             : content;
           
           projectContext += `\n---\n## ${file.desc} (${file.path})\n\n${truncated}\n`;
@@ -349,8 +350,8 @@ export class CommandHandler {
           }
         }
 
-        // 小延迟，让用户有时间阅读进度
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // 增加延迟，避免微信消息限流
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
 
       projectContext += `\n---\n\n✅ 项目交接完成！\n\n作为创始者Agent，你的职责：\n`;
@@ -360,14 +361,17 @@ export class CommandHandler {
       projectContext += `4. 协助项目演进和重构\n\n`;
       projectContext += `可以使用 /status 查看状态，开始维护项目吧！`;
 
-      // 发送完成通知
+      // 发送完成通知前等待，确保前面的消息都发送完毕
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       if (onProgress) {
         await onProgress(
-          `\n🎉 初始化完成！\n` +
-          `成功加载: ${loadedCount} 个文件\n` +
-          `${failedCount > 0 ? `加载失败: ${failedCount} 个文件\n` : ''}` +
-          `正在生成完整交接文档...`
+          `🎉 初始化完成！\n` +
+          `成功: ${loadedCount} | 失败: ${failedCount}\n` +
+          `正在发送完整文档...`
         );
+        // 等待最终消息发送
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       return {
