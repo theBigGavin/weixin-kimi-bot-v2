@@ -10,6 +10,7 @@ export enum NotificationChannel {
   EMAIL = 'email',
   SMS = 'sms',
   PUSH = 'push',
+  WECHAT = 'wechat',
 }
 
 export enum NotificationPriority {

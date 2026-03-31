@@ -23,6 +23,8 @@ import {
   initFlowTaskManager,
   initSchedulerManager,
   initCommandHandler,
+  initNotificationService,
+  registerWechatChannel,
   getCommandHandler,
   getAcpManager,
   getTaskRouter,
@@ -94,6 +96,20 @@ export async function main(): Promise<void> {
   await initFlowTaskManager(store);
   initSchedulerManager();
   initCommandHandler();
+  initNotificationService();
+
+  // Register WeChat notification channels for each agent
+  for (const ac of clients) {
+    registerWechatChannel(ac.agentId, async (notification) => {
+      // Send notification via WeChat
+      const contextToken = getContextToken(ac.agentId) ?? '';
+      await ac.client.sendText(
+        ac.credentials.accountId,
+        `${notification.title}\n\n${notification.message}`,
+        contextToken
+      );
+    });
+  }
 
   console.log('=== 微信 Kimi Bot (智能任务路由 v2) 已启动 ===');
   console.log(`已加载 ${clients.length} 个 Agent:`);

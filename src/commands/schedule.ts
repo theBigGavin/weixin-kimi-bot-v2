@@ -228,7 +228,9 @@ class ScheduleCreateSubCommand extends SubCommand {
         type,
         schedule: scheduleConfig,
         handler: handlerName,
-        data: dataValue ? { message: dataValue, agentId: agent.id } : { agentId: agent.id },
+        data: dataValue 
+          ? { message: dataValue, agentId: agent.id, userId: agent.wechat.accountId }
+          : { agentId: agent.id, userId: agent.wechat.accountId },
       });
 
       const timeDisplay = type === ScheduleType.ONCE 

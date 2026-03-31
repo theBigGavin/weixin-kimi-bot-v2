@@ -16,6 +16,8 @@ import { SchedulerManager } from '../scheduler/manager.js';
 import { getBaseDir } from '../paths.js';
 import { waitingFlowTasks, setCommandHandler } from './state.js';
 import { CommandHandler } from '../handlers/command-handler.js';
+import { NotificationService, NotificationChannel } from '../notifications/index.js';
+import { createTaskNotifier, type TaskNotificationService } from '../notifications/index.js';
 
 // Manager instances
 let commandHandler: CommandHandler | null = null;
@@ -27,6 +29,10 @@ let flowTaskManager: FlowTaskManager | null = null;
 let memoryManager: MemoryManager | null = null;
 let memoryExtractor: MemoryExtractor | null = null;
 let schedulerManager: SchedulerManager | null = null;
+let notificationService: NotificationService | null = null;
+
+// Map to store task notifiers per agent
+const taskNotifiers = new Map<string, TaskNotificationService>();
 
 export function initAgentManager(): AgentManager {
   if (agentManager) return agentManager;
@@ -86,12 +92,37 @@ export function initSchedulerManager(): SchedulerManager {
   
   schedulerManager = SchedulerManager.getInstance();
   
+  // Ensure notification service is initialized
+  initNotificationService();
+  
   schedulerManager.registerHandler('reminder', async (data) => {
-    console.log('[Scheduler] Reminder:', data?.message);
+    const agentId = data?.agentId as string;
+    const message = data?.message as string;
+    const userId = data?.userId as string;
+    
+    console.log('[Scheduler] Reminder:', message);
+    
+    // Send via notification service if we have agent info
+    if (agentId && userId) {
+      const notifier = getTaskNotifier(agentId, userId);
+      if (notifier) {
+        await notifier.scheduledReminder(message, data);
+      }
+    }
   });
   
   schedulerManager.registerHandler('daily_report', async (data) => {
-    console.log('[Scheduler] Daily report for agent:', data?.agentId);
+    const agentId = data?.agentId as string;
+    const userId = data?.userId as string;
+    
+    console.log('[Scheduler] Daily report for agent:', agentId);
+    
+    if (agentId && userId) {
+      const notifier = getTaskNotifier(agentId, userId);
+      if (notifier) {
+        await notifier.dailyReport(`日报生成时间: ${new Date().toLocaleString()}`);
+      }
+    }
   });
   
   schedulerManager.registerHandler('health_check', async () => {
@@ -200,3 +231,80 @@ export function initCommandHandler(): CommandHandler {
 }
 
 export function getCommandHandler(): CommandHandler | null { return commandHandler; }
+
+// ============================================================================
+// Notification Service
+// ============================================================================
+
+export function initNotificationService(): NotificationService {
+  if (notificationService) return notificationService;
+  
+  notificationService = new NotificationService();
+  
+  // Register console channel (always available)
+  notificationService.registerChannel(NotificationChannel.CONSOLE, async (notification) => {
+    console.log(`[Notification] ${notification.title}: ${notification.message}`);
+  });
+  
+  notificationService.setDefaultChannel(NotificationChannel.CONSOLE);
+  
+  console.log('[Notification] Notification service initialized');
+  return notificationService;
+}
+
+export function getNotificationService(): NotificationService | null {
+  return notificationService;
+}
+
+/**
+ * Register WeChat notification channel for an agent
+ * This should be called when an agent client is initialized
+ */
+export function registerWechatChannel(
+  agentId: string, 
+  sender: (notification: { title: string; message: string; data?: Record<string, unknown> }) => Promise<void>
+): void {
+  if (!notificationService) {
+    throw new Error('Notification service not initialized');
+  }
+  
+  const channelName = `${NotificationChannel.WECHAT}_${agentId}`;
+  
+  notificationService.registerChannel(channelName as NotificationChannel, async (notification) => {
+    await sender({
+      title: notification.title,
+      message: notification.message,
+      data: notification.data,
+    });
+  });
+  
+  console.log(`[Notification] WeChat channel registered for agent: ${agentId}`);
+}
+
+/**
+ * Get or create a task notifier for an agent
+ */
+export function getTaskNotifier(agentId: string, userId: string): TaskNotificationService | null {
+  if (!notificationService) return null;
+  
+  const key = `${agentId}:${userId}`;
+  const existingNotifier = taskNotifiers.get(key);
+  
+  if (existingNotifier) {
+    return existingNotifier;
+  }
+  
+  // Try to get agent-specific WeChat channel, fallback to console
+  const channelName = `${NotificationChannel.WECHAT}_${agentId}` as NotificationChannel;
+  const hasWechatChannel = notificationService.getRegisteredChannels().includes(channelName);
+  
+  const notifier = createTaskNotifier(
+    notificationService,
+    agentId,
+    userId,
+    hasWechatChannel ? channelName : NotificationChannel.CONSOLE
+  );
+  
+  taskNotifiers.set(key, notifier);
+  return notifier;
+}
