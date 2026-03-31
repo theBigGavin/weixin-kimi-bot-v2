@@ -15,6 +15,7 @@ export enum CommandType {
   RESET = 'reset',
   MEMORY = 'memory',
   TASK = 'task',
+  TEST = 'test',
   UNKNOWN = 'unknown',
 }
 
@@ -69,6 +70,11 @@ const AVAILABLE_COMMANDS: CommandInfo[] = [
     description: '管理任务',
     usage: '/task <list|status>',
   },
+  {
+    name: 'test',
+    description: '测试Bot连接',
+    usage: '/test',
+  },
 ];
 
 export class CommandHandler {
@@ -104,6 +110,8 @@ export class CommandHandler {
         return this.handleMemory(args, agent);
       case 'task':
         return this.handleTask(args, agent);
+      case 'test':
+        return this.handleTest(agent);
       default:
         return {
           type: CommandType.UNKNOWN,
@@ -223,6 +231,14 @@ export class CommandHandler {
       success: true,
       response: `📋 任务管理 - 操作: ${action}`,
       data: { action },
+    };
+  }
+
+  private handleTest(agent: Agent): CommandResult {
+    return {
+      type: CommandType.TEST,
+      success: true,
+      response: `✅ Bot 连接正常！\nAgent: ${agent.name}\n时间: ${new Date().toLocaleString()}`,
     };
   }
 }
