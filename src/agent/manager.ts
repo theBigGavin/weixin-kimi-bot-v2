@@ -86,10 +86,15 @@ export class AgentManager {
     const runtime = createAgentRuntime(config.id);
     this.runtimes.set(config.id, runtime);
 
-    // 构建 Agent 对象
+    // 构建 Agent 对象（包含便捷访问属性）
     const agent: Agent = {
       config,
       runtime,
+      id: config.id,
+      name: config.name,
+      ai: config.ai,
+      memory: config.memory,
+      wechat: config.wechat,
     };
 
     // 保存到存储
@@ -122,9 +127,15 @@ export class AgentManager {
       this.runtimes.set(agentId, runtime);
     }
 
+    // 构建完整的 Agent 对象（包含便捷访问属性）
     return {
       config: data.config,
       runtime,
+      id: data.config.id,
+      name: data.config.name,
+      ai: data.config.ai,
+      memory: data.config.memory,
+      wechat: data.config.wechat,
     };
   }
 

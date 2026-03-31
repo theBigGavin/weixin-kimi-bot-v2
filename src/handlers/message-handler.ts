@@ -5,12 +5,12 @@
  * Routes messages through: Parser → Command? → Task Router → Executor
  */
 
-import { Agent } from '../agent/types';
-import { SessionContext } from '../context/session-context';
-import { CommandHandler } from './command-handler';
-import { TaskRouter } from '../task-router/decision';
-import { TaskSubmission } from '../task-router/analyzer';
-import { sanitizeInput, isCommandMessage } from './message-utils';
+import { Agent } from '../agent/types.js';
+import type { SessionContext } from '../context/types.js';
+import { CommandHandler } from './command-handler.js';
+import { DecisionEngine } from '../task-router/decision.js';
+import type { TaskSubmission } from '../types/index.js';
+import { sanitizeInput, isCommandMessage } from './message-utils.js';
 
 export interface HandlerContext {
   message: string;
@@ -38,7 +38,7 @@ const MAX_MESSAGE_LENGTH = 10000;
 export class MessageHandler {
   constructor(
     private commandHandler: CommandHandler,
-    private taskRouter: TaskRouter
+    private taskRouter: DecisionEngine
   ) {}
 
   /**

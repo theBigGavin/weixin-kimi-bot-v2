@@ -24,6 +24,9 @@ export enum ConversationState {
   EXECUTINGE = 'executinge',
   REVIEWING = 'reviewing',
   COMPLETED = 'completed',
+  PAUSED = 'paused',
+  ERROR = 'error',
+  DESTROYED = 'destroyed',
 }
 
 // ============================================

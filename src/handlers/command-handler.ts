@@ -4,8 +4,8 @@
  * Processes command messages and returns appropriate responses.
  */
 
-import { Agent } from '../agent/types';
-import { parseCommand } from './message-utils';
+import { Agent } from '../agent/types.js';
+import { parseCommand } from './message-utils.js';
 
 export enum CommandType {
   HELP = 'help',

@@ -46,6 +46,8 @@ export interface WechatBindings {
   agents: AgentBinding[];
   /** 默认Agent ID */
   defaultAgentId?: string;
+  /** 当前使用的Agent ID */
+  currentAgentId?: string;
   /** 最后更新时间 */
   updatedAt: number;
 }

@@ -22,6 +22,9 @@ export enum ConversationState {
   EXECUTINGE = 'executinge',
   REVIEWING = 'reviewing',
   COMPLETED = 'completed',
+  PAUSED = 'paused',
+  ERROR = 'error',
+  DESTROYED = 'destroyed',
 }
 
 // ============================================
@@ -361,4 +364,17 @@ export interface Result<T, E = Error> {
   success: boolean;
   data?: T;
   error?: E;
+}
+
+/**
+ * 记忆
+ */
+export interface Memory {
+  facts: Array<{
+    id: string;
+    content: string;
+    importance: number;
+    createdAt: number;
+    category?: string;
+  }>;
 }

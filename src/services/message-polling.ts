@@ -4,7 +4,7 @@
  * Polls for new WeChat messages and dispatches them to handlers.
  */
 
-import { WeChatMessage } from '../ilink/types';
+import { WeChatMessage } from '../ilink/types.js';
 
 export interface PollingConfig {
   interval: number;

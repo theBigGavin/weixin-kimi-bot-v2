@@ -4,7 +4,8 @@
  * 从用户输入文本中识别意图类型和提取实体
  */
 
-import { IntentType, Intent, Entity, createIntent } from './types.js';
+import { IntentType, Intent, createIntent } from './types.js';
+import type { Entity } from '../types/index.js';
 
 /**
  * 意图模式定义
