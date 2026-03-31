@@ -21,8 +21,8 @@ export interface PollingStats {
   lastPollAt?: number;
 }
 
-export type MessageHandler = (message: WeChatMessage) => Promise<void> | void;
-export type FetchMessagesFunction = () => Promise<WeChatMessage[]>;
+export type MessageHandler = (message: ParsedWeixinMessage) => Promise<void> | void;
+export type FetchMessagesFunction = () => Promise<ParsedWeixinMessage[]>;
 
 export class MessagePollingService {
   private running = false;
