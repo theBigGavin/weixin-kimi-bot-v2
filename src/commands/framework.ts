@@ -341,17 +341,28 @@ export class CommandRegistry {
   ): Promise<CommandResult> {
     const command = this.get(name);
     if (!command) {
+      console.log(`[Command] │  命令未注册: ${name}`);
       return ResponseBuilder.error(
         `未知命令: ${name}。输入 /help 查看可用命令。`,
         'UnknownCommand',
         CommandType.UNKNOWN
       );
     }
+    
+    const subCommandName = context.args[0];
+    const hasSubCommands = command['subCommands']?.size > 0;
+    
+    if (hasSubCommands && subCommandName) {
+      console.log(`[Command] │  子命令: ${subCommandName}`);
+    }
+    
     const result = await command.execute(context);
+    
     // Ensure type is set
     if (!result.type || result.type === CommandType.UNKNOWN) {
       result.type = command.getCommandType();
     }
+    
     return result;
   }
 

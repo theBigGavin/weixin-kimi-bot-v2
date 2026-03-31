@@ -27,6 +27,7 @@ export class CommandHandler {
   ): Promise<CommandResult> {
     const parsed = parseCommand(message);
     if (!parsed) {
+      console.log(`[Command] 无法解析命令: "${message}"`);
       return {
         type: CommandType.UNKNOWN,
         success: false,
@@ -35,14 +36,41 @@ export class CommandHandler {
       };
     }
 
+    const { command, args } = parsed;
+    const startTime = Date.now();
+    
+    console.log(`[Command] ┌─ 执行命令: /${command}${args.length > 0 ? ' ' + args.join(' ') : ''}`);
+    console.log(`[Command] │  Agent: ${agent.name} (${agent.id})`);
+
     const context: CommandContext = {
       agent,
-      args: parsed.args,
+      args,
       rawMessage: message,
       onProgress,
     };
 
-    return registry.execute(parsed.command, context);
+    try {
+      const result = await registry.execute(command, context);
+      const duration = Date.now() - startTime;
+      
+      if (result.success) {
+        console.log(`[Command] └─ ✅ 成功 (${duration}ms)`);
+      } else {
+        console.log(`[Command] └─ ❌ 失败 (${duration}ms): ${result.error || '未知错误'}`);
+      }
+      
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[Command] └─ 💥 异常 (${duration}ms):`, error);
+      
+      return {
+        type: CommandType.UNKNOWN,
+        success: false,
+        response: '命令执行出错: ' + (error instanceof Error ? error.message : String(error)),
+        error: 'ExecutionError',
+      };
+    }
   }
 
   isCommand(message: string): boolean {
