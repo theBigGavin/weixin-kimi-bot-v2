@@ -6,7 +6,8 @@
 
 import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
+import { Paths } from '../paths.js';
 import { join } from 'path';
 
 export enum CommandType {
@@ -71,8 +72,8 @@ const AVAILABLE_COMMANDS: CommandInfo[] = [
   },
   {
     name: 'memory',
-    description: '开关长期记忆',
-    usage: '/memory <on|off>',
+    description: '查看或编辑Agent记忆',
+    usage: '/memory [update <内容> | clear]',
   },
   {
     name: 'task',
@@ -125,7 +126,7 @@ export class CommandHandler {
       case 'reset':
         return this.handleReset(agent);
       case 'memory':
-        return this.handleMemory(args, agent);
+        return await this.handleMemory(args, agent);
       case 'task':
         return this.handleTask(args, agent);
       case 'test':
@@ -221,26 +222,118 @@ export class CommandHandler {
     };
   }
 
-  private handleMemory(args: string[], _agent: Agent): CommandResult {
+  private async handleMemory(args: string[], agent: Agent): Promise<CommandResult> {
     const action = args[0]?.toLowerCase();
     
-    if (action !== 'on' && action !== 'off') {
+    // 获取 memory.json 路径
+    const memoryPath = Paths.agentMemory(agent.id);
+    
+    try {
+      // 读取现有记忆
+      let memoryData: { items: string[]; enabled: boolean; updatedAt?: number } = { 
+        items: [], 
+        enabled: agent.memory.enabledL 
+      };
+      
+      try {
+        const content = await readFile(memoryPath, 'utf-8');
+        memoryData = JSON.parse(content);
+      } catch {
+        // 文件不存在，使用默认值
+      }
+      
+      // 不带参数：显示当前记忆
+      if (!action) {
+        const items = memoryData.items || [];
+        if (items.length === 0) {
+          return {
+            type: CommandType.MEMORY,
+            success: true,
+            response: '📭 当前没有记忆内容\n\n用法：\n• /memory - 查看记忆\n• /memory update <内容> - 添加/更新记忆',
+          };
+        }
+        
+        let response = `🧠 Agent 记忆 (${items.length} 条)\n==================\n\n`;
+        items.forEach((item, index) => {
+          response += `${index + 1}. ${item}\n`;
+        });
+        response += '\n💡 使用 /memory update <内容> 添加新记忆';
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response,
+          data: { items },
+        };
+      }
+      
+      // update 操作：更新记忆
+      if (action === 'update') {
+        const newItem = args.slice(1).join(' ').trim();
+        
+        if (!newItem) {
+          return {
+            type: CommandType.MEMORY,
+            success: false,
+            response: '❌ 请提供记忆内容。用法: /memory update <内容>',
+            error: 'Missing memory content',
+          };
+        }
+        
+        // 添加到记忆列表
+        if (!memoryData.items) {
+          memoryData.items = [];
+        }
+        memoryData.items.push(newItem);
+        memoryData.updatedAt = Date.now();
+        
+        // 保存到文件
+        await writeFile(memoryPath, JSON.stringify(memoryData, null, 2), 'utf-8');
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response: `✅ 记忆已添加\n\n📝 ${newItem}\n\n当前共有 ${memoryData.items.length} 条记忆`,
+          data: { item: newItem, total: memoryData.items.length },
+        };
+      }
+      
+      // clear 操作：清空记忆
+      if (action === 'clear') {
+        memoryData.items = [];
+        memoryData.updatedAt = Date.now();
+        await writeFile(memoryPath, JSON.stringify(memoryData, null, 2), 'utf-8');
+        
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response: '🗑️ 所有记忆已清空',
+        };
+      }
+      
+      // 旧版 on/off 支持（仅显示提示）
+      if (action === 'on' || action === 'off') {
+        return {
+          type: CommandType.MEMORY,
+          success: true,
+          response: `💡 记忆功能已${action === 'on' ? '开启' : '关闭'}\n\n新用法：\n• /memory - 查看记忆\n• /memory update <内容> - 添加记忆\n• /memory clear - 清空记忆`,
+        };
+      }
+      
       return {
         type: CommandType.MEMORY,
         success: false,
-        response: '❌ 请指定 on 或 off。用法: /memory <on|off>',
-        error: 'Invalid memory action',
+        response: '❌ 未知操作。用法:\n• /memory - 查看记忆\n• /memory update <内容> - 添加记忆\n• /memory clear - 清空记忆',
+        error: 'Invalid action',
+      };
+    } catch (error) {
+      return {
+        type: CommandType.MEMORY,
+        success: false,
+        response: '❌ 记忆操作失败: ' + (error as Error).message,
+        error: (error as Error).message,
       };
     }
-
-    const enabled = action === 'on';
-    
-    return {
-      type: CommandType.MEMORY,
-      success: true,
-      response: `💾 长期记忆已${enabled ? '开启' : '关闭'}`,
-      data: { enabled },
-    };
   }
 
   private handleTask(args: string[], _agent: Agent): CommandResult {

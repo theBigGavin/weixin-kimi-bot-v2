@@ -103,20 +103,24 @@ describe('command-handler', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should handle /memory command with on/off', async () => {
-      // When - turn off
-      const resultOff = await handler.execute('/memory off', mockAgent);
+    it('should handle /memory command to view memory', async () => {
+      // When - view memory (no args)
+      const result = await handler.execute('/memory', mockAgent);
 
       // Then
-      expect(resultOff.type).toBe(CommandType.MEMORY);
-      expect(resultOff.success).toBe(true);
-      expect(resultOff.data?.enabled).toBe(false);
+      expect(result.type).toBe(CommandType.MEMORY);
+      expect(result.success).toBe(true);
+      expect(result.response).toContain('记忆');
+    });
 
-      // When - turn on
-      const resultOn = await handler.execute('/memory on', mockAgent);
+    it('should handle /memory update command', async () => {
+      // When - update memory without content
+      const resultEmpty = await handler.execute('/memory update', mockAgent);
 
-      // Then
-      expect(resultOn.data?.enabled).toBe(true);
+      // Then - should fail without content
+      expect(resultEmpty.type).toBe(CommandType.MEMORY);
+      expect(resultEmpty.success).toBe(false);
+      expect(resultEmpty.response).toContain('请提供记忆内容');
     });
 
     it('should handle /task command', async () => {
