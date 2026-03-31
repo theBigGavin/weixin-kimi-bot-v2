@@ -11,8 +11,10 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "start": "node --import tsx src/index.ts",
+    "start:acp": "node --import tsx src/index-acp.ts",
     "login": "node --import tsx src/login.ts",
     "dev": "tsx src/index.ts",
+    "dev:acp": "tsx src/index-acp.ts",
     "lint": "tsc --noEmit"
   },
   "keywords": [
@@ -33,6 +35,7 @@
     "vitest": "^1.2.0"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.17.1",
     "qrcode-terminal": "^0.12.0",
     "weixin-ilink": "^0.1.0"
   }
