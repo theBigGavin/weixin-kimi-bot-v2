@@ -5,11 +5,12 @@
  */
 
 import { main } from './clients/polling.js';
+import { getDefaultLogger } from './logging/index.js';
 
 // Only run main if this file is executed directly (not imported)
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    console.error('启动失败:', err);
+    getDefaultLogger().error('启动失败:', err);
     process.exit(1);
   });
 }

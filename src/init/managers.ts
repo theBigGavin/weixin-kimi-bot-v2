@@ -18,6 +18,10 @@ import { waitingFlowTasks, setCommandHandler } from './state.js';
 import { CommandHandler } from '../handlers/command-handler.js';
 import { NotificationService, NotificationChannel } from '../notifications/index.js';
 import { createTaskNotifier, type TaskNotificationService } from '../notifications/index.js';
+import { SkillManager, createSkillManager } from '../skills/index.js';
+import { initializeSystemSkills, installSystemSkillsForAgent } from '../skills/system-skills.js';
+import { CreateAgentConfigParams } from '../agent/types.js';
+import { createRequestLogger, getDefaultLogger } from '../logging/index.js';
 
 // Manager instances
 let commandHandler: CommandHandler | null = null;
@@ -30,21 +34,28 @@ let memoryManager: MemoryManager | null = null;
 let memoryExtractor: MemoryExtractor | null = null;
 let schedulerManager: SchedulerManager | null = null;
 let notificationService: NotificationService | null = null;
+let skillManager: SkillManager | null = null;
 
 // Map to store task notifiers per agent
 const taskNotifiers = new Map<string, TaskNotificationService>();
 
-export function initAgentManager(): AgentManager {
+export async function initAgentManager(): Promise<AgentManager> {
   if (agentManager) return agentManager;
   
   const store = new FileStore(getBaseDir());
   agentManager = new AgentManager(store);
+
+  // 初始化技能管理器（如果还没有初始化）
+  await initSkillManager();
   
   return agentManager;
 }
 
-export function initACPManager(): ACPManager {
+export async function initACPManager(): Promise<ACPManager> {
   if (acpManager) return acpManager;
+
+  // 确保技能管理器已初始化
+  await initSkillManager();
 
   // Note: cwd is no longer set here - it's passed per-session in prompt() calls
   // Each Agent uses their own workspace.path as cwd for isolation
@@ -56,6 +67,7 @@ export function initACPManager(): ACPManager {
     },
     sessionTimeout: 30 * 60 * 1000, // 30 minutes
     cleanupInterval: 5 * 60 * 1000, // 5 minutes
+    skillManager: skillManager ?? undefined,
   });
 
   return acpManager;
@@ -102,7 +114,7 @@ export function initSchedulerManager(): SchedulerManager {
     const message = data?.message as string;
     const userId = data?.userId as string;
     
-    console.log('[Scheduler] Reminder:', message);
+    getDefaultLogger().info('[Scheduler] Reminder:', message);
     
     // Send via notification service if we have agent info
     if (agentId && userId) {
@@ -117,7 +129,7 @@ export function initSchedulerManager(): SchedulerManager {
     const agentId = data?.agentId as string;
     const userId = data?.userId as string;
     
-    console.log('[Scheduler] Daily report for agent:', agentId);
+    getDefaultLogger().info('[Scheduler] Daily report for agent:', agentId);
     
     if (agentId && userId) {
       const notifier = getTaskNotifier(agentId, userId);
@@ -133,7 +145,7 @@ export function initSchedulerManager(): SchedulerManager {
     const agentId = data?.agentId as string;
     const userId = data?.userId as string;
     
-    console.log('[Scheduler] Health check running...');
+    getDefaultLogger().info('[Scheduler] Health check running...');
     
     // Perform system health checks
     const checks = performHealthChecks();
@@ -151,11 +163,11 @@ export function initSchedulerManager(): SchedulerManager {
     }
     
     // Log stats
-    console.log(`[Scheduler] Health check: CPU ${checks.cpu}%, Memory ${checks.memory}%, Uptime ${checks.uptime}h`);
+    getDefaultLogger().info(`[Scheduler] Health check: CPU ${checks.cpu}%, Memory ${checks.memory}%, Uptime ${checks.uptime}h`);
   });
   
   schedulerManager.start();
-  console.log('[Scheduler] Scheduler manager started');
+  getDefaultLogger().info('[Scheduler] Scheduler manager started');
   
   return schedulerManager;
 }
@@ -168,18 +180,19 @@ export async function initLongTaskManager(store: FileStore): Promise<LongTaskMan
     pollInterval: 5000,
     timeout: 30 * 60 * 1000,
     store,
-    acpManager: initACPManager(),
+    acpManager: await initACPManager(),
   });
 
+  // 基础回调仅打印日志，实际消息推送在 polling.ts 中设置
   manager.setCallbacks({
-    onProgress: async (taskId: string, progress: number, message: string) => {
-      console.log(`[LongTask ${taskId}] Progress: ${progress}% - ${message}`);
+    onProgress: async (task, progress: number, message: string) => {
+      createRequestLogger(task.id).info(`Progress: ${progress}% - ${message}`);
     },
-    onComplete: async (taskId: string) => {
-      console.log(`[LongTask ${taskId}] Completed`);
+    onComplete: async (task) => {
+      createRequestLogger(task.id).info('Completed');
     },
-    onFail: async (taskId: string, error: string) => {
-      console.error(`[LongTask ${taskId}] Failed: ${error}`);
+    onFail: async (task, error: string) => {
+      createRequestLogger(task.id).error(`Failed: ${error}`);
     },
   });
 
@@ -189,23 +202,79 @@ export async function initLongTaskManager(store: FileStore): Promise<LongTaskMan
   return manager;
 }
 
+/**
+ * 设置 LongTaskManager 的微信消息推送回调
+ * 用于任务完成/失败时主动推送消息给用户
+ */
+export function setLongTaskWechatCallbacks(
+  getClient: (agentId: string) => { client: { sendText: (userId: string, text: string, token: string) => Promise<void> } } | undefined
+): void {
+  if (!longTaskManager) {
+    throw new Error('LongTaskManager not initialized');
+  }
+
+  longTaskManager.setCallbacks({
+    onProgress: async (task, progress, message) => {
+      createRequestLogger(task.id).info(`Progress: ${progress}% - ${message}`);
+    },
+    onComplete: async (task, result) => {
+      createRequestLogger(task.id).info('Completed');
+      
+      // 推送完成消息到微信
+      const agentClient = getClient(task.agentId);
+      if (agentClient) {
+        try {
+          const truncatedResult = result.length > 2000 
+            ? result.slice(0, 2000) + '\n\n...(内容已截断，请使用 /task status 查看完整结果)'
+            : result;
+          
+          await agentClient.client.sendText(
+            task.userId,
+            `✅ 任务完成\n\n任务ID: ${task.id}\n\n${truncatedResult}`,
+            task.contextToken
+          );
+        } catch (e) {
+          createRequestLogger(task.id).error('Failed to send completion message:', e);
+        }
+      }
+    },
+    onFail: async (task, error) => {
+      createRequestLogger(task.id).error(`Failed: ${error}`);
+      
+      // 推送失败消息到微信
+      const agentClient = getClient(task.agentId);
+      if (agentClient) {
+        try {
+          await agentClient.client.sendText(
+            task.userId,
+            `❌ 任务执行失败\n\n任务ID: ${task.id}\n\n错误: ${error}`,
+            task.contextToken
+          );
+        } catch (e) {
+          createRequestLogger(task.id).error('Failed to send failure message:', e);
+        }
+      }
+    },
+  });
+}
+
 export async function initFlowTaskManager(store: FileStore): Promise<FlowTaskManager> {
   if (flowTaskManager) return flowTaskManager;
 
   const manager = new FlowTaskManager({
     store,
-    acpManager: initACPManager(),
+    acpManager: await initACPManager(),
   });
 
   manager.setCallbacks({
     onWaitingConfirm: async (taskId: string, step) => {
-      console.log(`[FlowTask ${taskId}] Waiting for confirmation on step: ${step.description}`);
+      createRequestLogger(taskId).info(`Waiting for confirmation on step: ${step.description}`);
     },
     onStepComplete: async (taskId: string, stepIndex: number) => {
-      console.log(`[FlowTask ${taskId}] Step ${stepIndex} completed`);
+      createRequestLogger(taskId).info(`Step ${stepIndex} completed`);
     },
     onComplete: async (taskId: string) => {
-      console.log(`[FlowTask ${taskId}] All steps completed`);
+      createRequestLogger(taskId).info('All steps completed');
       for (const [userId, taskInfo] of waitingFlowTasks) {
         if (taskInfo.taskId === taskId) {
           waitingFlowTasks.delete(userId);
@@ -214,7 +283,7 @@ export async function initFlowTaskManager(store: FileStore): Promise<FlowTaskMan
       }
     },
     onFail: async (taskId: string, error: string) => {
-      console.error(`[FlowTask ${taskId}] Failed: ${error}`);
+      createRequestLogger(taskId).error(`Failed: ${error}`);
     },
   });
 
@@ -225,7 +294,7 @@ export async function initFlowTaskManager(store: FileStore): Promise<FlowTaskMan
 }
 
 export async function getAgent(agentId: string, fromUser: string): Promise<Agent> {
-  const manager = initAgentManager();
+  const manager = await initAgentManager();
   const agent = await manager.getAgent(agentId);
   
   if (agent) {
@@ -235,6 +304,60 @@ export async function getAgent(agentId: string, fromUser: string): Promise<Agent
   return createAgent({
     wechat: { accountId: fromUser },
   });
+}
+
+// ============================================================================
+// Skill Manager
+// ============================================================================
+
+export async function initSkillManager(): Promise<SkillManager> {
+  if (skillManager) return skillManager;
+
+  const store = new FileStore(getBaseDir());
+  const result = await initializeSystemSkills(store);
+
+  if (!result.ok) {
+    getDefaultLogger().error('[Skills] Failed to initialize system skills:', result.error.message);
+    // 创建一个空的技能管理器作为 fallback
+    skillManager = createSkillManager(store);
+  } else {
+    skillManager = result.value;
+    getDefaultLogger().info('[Skills] System skills initialized');
+  }
+
+  return skillManager;
+}
+
+export function getSkillManager(): SkillManager | null { return skillManager; }
+
+/**
+ * 为新创建的 Agent 安装系统技能
+ */
+export async function installSkillsForNewAgent(agentId: string): Promise<void> {
+  if (!skillManager) {
+    await initSkillManager();
+  }
+
+  if (skillManager) {
+    await installSystemSkillsForAgent(skillManager, agentId, true);
+  }
+}
+
+/**
+ * 创建 Agent 并自动安装系统技能
+ */
+export async function createAgentWithSkills(
+  params: CreateAgentConfigParams
+): Promise<Agent> {
+  const manager = await initAgentManager();
+  
+  // 创建 Agent
+  const agent = await manager.createAgent(params);
+  
+  // 安装系统技能
+  await installSkillsForNewAgent(agent.config.id);
+  
+  return agent;
 }
 
 // Export getters for other modules
@@ -336,12 +459,12 @@ export function initNotificationService(): NotificationService {
   
   // Register console channel (always available)
   notificationService.registerChannel(NotificationChannel.CONSOLE, async (notification) => {
-    console.log(`[Notification] ${notification.title}: ${notification.message}`);
+    getDefaultLogger().info(`[Notification] ${notification.title}: ${notification.message}`);
   });
   
   notificationService.setDefaultChannel(NotificationChannel.CONSOLE);
   
-  console.log('[Notification] Notification service initialized');
+  getDefaultLogger().info('[Notification] Notification service initialized');
   return notificationService;
 }
 
@@ -371,7 +494,7 @@ export function registerWechatChannel(
     });
   });
   
-  console.log(`[Notification] WeChat channel registered for agent: ${agentId}`);
+  getDefaultLogger().info(`[Notification] WeChat channel registered for agent: ${agentId}`);
 }
 
 /**

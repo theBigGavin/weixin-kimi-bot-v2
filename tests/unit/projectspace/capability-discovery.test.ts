@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, writeFile, rmdir } from 'fs/promises';
+import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -27,7 +27,7 @@ describe('capability-discovery', () => {
   afterEach(async () => {
     // Cleanup
     try {
-      await rmdir(testDir, { recursive: true });
+      await rm(testDir, { recursive: true, force: true });
     } catch { /* ignore */ }
   });
 

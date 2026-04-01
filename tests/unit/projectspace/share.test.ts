@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, writeFile, readFile, rmdir } from 'fs/promises';
+import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -29,7 +29,7 @@ describe('project-share', () => {
 
   afterEach(async () => {
     try {
-      await rmdir(testDir, { recursive: true });
+      await rm(testDir, { recursive: true, force: true });
     } catch { /* ignore */ }
   });
 

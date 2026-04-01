@@ -13,7 +13,7 @@ import {
   ExecutionStep,
   CAPABILITY_PROTOCOL_VERSION,
 } from './types.js';
-import { ExecutionMode } from '../types.js';
+import { ExecutionMode, TaskComplexity } from '../types.js';
 import { CapabilityRegistry } from './capability-registry.js';
 
 /**
@@ -253,8 +253,9 @@ export class ProtocolValidator {
         });
       }
 
-      const validLevels = ['simple', 'moderate', 'complex', 'very_complex'];
-      if (!validLevels.includes(level)) {
+      const validLevels = [TaskComplexity.SIMPLE, TaskComplexity.MODERATE, TaskComplexity.COMPLEX, TaskComplexity.VERY_COMPLEX];
+      const levelNum = typeof level === 'string' ? parseInt(level, 10) : level;
+      if (!validLevels.includes(levelNum)) {
         errors.push({
           path: 'analysis.complexity.level',
           message: `Invalid complexity level: ${level}`,
@@ -263,12 +264,12 @@ export class ProtocolValidator {
       }
 
       // 警告：分数和等级不匹配
-      if (score !== undefined && level) {
+      if (score !== undefined && level !== undefined) {
         const expectedLevel = this.inferComplexityLevel(score);
-        if (level !== expectedLevel) {
+        if (levelNum !== expectedLevel) {
           warnings.push({
             path: 'analysis.complexity',
-            message: `Complexity score ${score} suggests level '${expectedLevel}', but got '${level}'`,
+            message: `Complexity score ${score} suggests level '${expectedLevel}', but got '${levelNum}'`,
           });
         }
       }
@@ -584,11 +585,11 @@ export class ProtocolValidator {
   /**
    * 根据分数推断复杂度等级
    */
-  private inferComplexityLevel(score: number): string {
-    if (score >= 80) return 'very_complex';
-    if (score >= 60) return 'complex';
-    if (score >= 30) return 'moderate';
-    return 'simple';
+  private inferComplexityLevel(score: number): TaskComplexity {
+    if (score >= 80) return TaskComplexity.VERY_COMPLEX;
+    if (score >= 60) return TaskComplexity.COMPLEX;
+    if (score >= 30) return TaskComplexity.MODERATE;
+    return TaskComplexity.SIMPLE;
   }
 }
 

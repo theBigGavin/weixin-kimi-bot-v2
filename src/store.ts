@@ -17,6 +17,7 @@ import {
 } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { getDefaultLogger } from './logging/index.js';
 
 // ============================================================================
 // Error Types
@@ -99,7 +100,7 @@ class FileStore implements Store {
         return JSON.parse(content) as T;
       } catch (parseError) {
         // JSON 解析错误也返回 null（与旧行为兼容）
-        console.warn(`Store: Corrupted JSON for key '${key}': ${(parseError as Error).message}`);
+        getDefaultLogger().warn(`Store: Corrupted JSON for key '${key}': ${(parseError as Error).message}`);
         return null;
       }
     } catch (error) {
@@ -245,7 +246,7 @@ class FileStore implements Store {
 
     // 如果有错误，记录警告但不抛出
     if (errors.length > 0) {
-      console.warn(`Store.stats: ${errors.length} files could not be stat'd`);
+      getDefaultLogger().warn(`Store.stats: ${errors.length} files could not be stat'd`);
     }
 
     return {

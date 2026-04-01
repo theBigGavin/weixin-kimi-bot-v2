@@ -17,6 +17,7 @@ import {
   createFactId,
   createProjectId,
 } from './types.js';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * 记忆提取器配置
@@ -131,7 +132,7 @@ ${'='.repeat(40)}
         learnings: parsed.learnings || [],
       };
     } catch (error) {
-      console.error('[MemoryExtractor] Failed to parse extraction result:', error);
+      getDefaultLogger().error('[MemoryExtractor] Failed to parse extraction result:', error);
       return { facts: [], projects: [], learnings: [] };
     }
   }

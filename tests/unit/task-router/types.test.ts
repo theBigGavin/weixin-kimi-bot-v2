@@ -29,10 +29,10 @@ describe('task-router/types', () => {
     });
 
     it('应该定义 TaskComplexity 复杂度枚举', () => {
-      expect(TaskComplexity.SIMPLE).toBe('simple');
-      expect(TaskComplexity.MODERATE).toBe('moderate');
-      expect(TaskComplexity.COMPLEX).toBe('complex');
-      expect(TaskComplexity.VERY_COMPLEX).toBe('very_complex');
+      expect(TaskComplexity.SIMPLE).toBe(0);
+      expect(TaskComplexity.MODERATE).toBe(1);
+      expect(TaskComplexity.COMPLEX).toBe(2);
+      expect(TaskComplexity.VERY_COMPLEX).toBe(3);
     });
 
     it('应该定义 LongTaskStatus 长任务状态枚举', () => {

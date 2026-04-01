@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { getDefaultLogger } from '../logging/index.js';
 
 // ============================================================================
 // Error Types
@@ -60,7 +61,7 @@ export function loadContextTokens(): void {
     try {
       tokenCache = JSON.parse(raw) as Record<string, string>;
     } catch (parseError) {
-      console.warn(`Session: Failed to parse context tokens, resetting: ${(parseError as Error).message}`);
+      getDefaultLogger().warn(`Session: Failed to parse context tokens, resetting: ${(parseError as Error).message}`);
       tokenCache = {};
     }
   } catch (error) {
@@ -68,7 +69,7 @@ export function loadContextTokens(): void {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       tokenCache = {};
     } else {
-      console.error(`Session: Failed to load context tokens: ${(error as Error).message}`);
+      getDefaultLogger().error(`Session: Failed to load context tokens: ${(error as Error).message}`);
       tokenCache = {};
     }
   }
@@ -117,7 +118,7 @@ export function loadSessionIds(): void {
     try {
       sessionCache = JSON.parse(raw) as Record<string, string>;
     } catch (parseError) {
-      console.warn(`Session: Failed to parse session IDs, resetting: ${(parseError as Error).message}`);
+      getDefaultLogger().warn(`Session: Failed to parse session IDs, resetting: ${(parseError as Error).message}`);
       sessionCache = {};
     }
   } catch (error) {
@@ -125,7 +126,7 @@ export function loadSessionIds(): void {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       sessionCache = {};
     } else {
-      console.error(`Session: Failed to load session IDs: ${(error as Error).message}`);
+      getDefaultLogger().error(`Session: Failed to load session IDs: ${(error as Error).message}`);
       sessionCache = {};
     }
   }
@@ -189,7 +190,7 @@ export function loadSyncBuf(): string {
   } catch (error) {
     // File doesn't exist is okay - return empty string
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error(`Session: Failed to load sync buffer: ${(error as Error).message}`);
+      getDefaultLogger().error(`Session: Failed to load sync buffer: ${(error as Error).message}`);
     }
     return '';
   }

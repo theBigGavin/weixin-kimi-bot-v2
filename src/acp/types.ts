@@ -31,17 +31,28 @@ export interface ACPSessionConfig {
 }
 
 /**
+ * MCP Server Environment Variable
+ */
+export interface MCP_SERVEREnvVariable {
+  name: string;
+  value: string;
+}
+
+/**
  * MCP Server Configuration
+ * 注意：Kimi ACP 要求 env 是数组格式 [{name, value}]
  */
 export interface MCPServerConfig {
+  /** Server type - 必须是 stdio */
+  type: 'stdio';
   /** Server name */
   name: string;
   /** Server command */
   command: string;
   /** Server arguments */
-  args?: string[];
-  /** Server environment */
-  env?: Record<string, string>;
+  args: string[];
+  /** Server environment - 必须是 [{name, value}] 数组格式 */
+  env: MCP_SERVEREnvVariable[];
 }
 
 /**

@@ -100,12 +100,12 @@ function loadConfig(): Result<Config, ParseError> {
 }
 ```
 
-### Phase 1 完成标准
-- [ ] 所有单例模式移除
-- [ ] 核心类转为工厂函数
-- [ ] 新增 Result 类型用于错误处理
-- [ ] 所有测试通过
-- [ ] 性能无回归
+### Phase 1 完成标准 ✅ COMPLETE (v0.5.0)
+- [x] 所有单例模式移除
+- [x] 核心类转为工厂函数
+- [x] 新增 Result 类型用于错误处理
+- [x] 所有测试通过 (826 tests)
+- [x] 性能无回归
 
 ---
 
@@ -163,11 +163,11 @@ const ConfigSchema = z.object({
 type Config = z.infer<typeof ConfigSchema>;
 ```
 
-### Phase 2 完成标准
-- [ ] 所有空 catch 块消除
-- [ ] 核心数据类型添加 Readonly
-- [ ] 引入 Zod Schema 验证
-- [ ] 新增类型安全测试
+### Phase 2 完成标准 ✅ COMPLETE (v0.5.1)
+- [x] 所有空 catch 块消除
+- [x] 核心数据类型添加 Readonly
+- [x] 引入 Zod Schema 验证
+- [x] 新增类型安全测试
 
 ---
 
@@ -210,10 +210,13 @@ export const DEFAULTS = {
 } as const;
 ```
 
-### Phase 3 完成标准
-- [ ] 命令式循环转为声明式
-- [ ] 所有魔法值提取到配置
-- [ ] 代码风格一致性检查通过
+### Phase 3 完成标准 ✅ COMPLETE (v0.5.2)
+- [x] Readonly 修饰符添加到核心类型 (AgentConfig, SessionContext, etc)
+- [x] Zod Schema 验证模块创建
+- [x] 命令式循环转为声明式
+- [x] 所有魔法值提取到配置
+- [x] 代码风格一致性检查通过
+- [x] 所有测试通过 (826 tests)
 
 ---
 

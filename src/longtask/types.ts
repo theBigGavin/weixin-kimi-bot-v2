@@ -39,6 +39,10 @@ export interface LongTask {
   completedAt?: number;
   /** Agent workspace path for isolation */
   workspacePath: string;
+  /** User context for notification */
+  userId: string;
+  agentId: string;
+  contextToken: string;
 }
 
 // ============================================

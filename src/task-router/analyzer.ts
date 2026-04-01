@@ -18,9 +18,20 @@ export class TaskAnalyzer {
   // 复杂度关键词映射
   private complexityKeywords: Record<TaskComplexity, string[]> = {
     [TaskComplexity.SIMPLE]: ['查询', '查看', '显示', '简单', 'hello', 'hi', '你好', '在吗'],
-    [TaskComplexity.MODERATE]: ['修改', '更新', '添加', '删除', '创建', '写', '编写'],
-    [TaskComplexity.COMPLEX]: ['重构', '优化', '设计', '实现', '开发', '迁移', '集成'],
-    [TaskComplexity.VERY_COMPLEX]: ['架构', ' redesign', '重写', '大规模', '系统级', '全流程'],
+    [TaskComplexity.MODERATE]: [
+      '修改', '更新', '添加', '删除', '创建', '写', '编写',
+      '学习', '了解', '看看', '查一下', '搜一下', // 新增：研究类入门
+    ],
+    [TaskComplexity.COMPLEX]: [
+      '重构', '优化', '设计', '实现', '开发', '迁移', '集成',
+      '分析', '评估', '调研', '研究', '对比', '比较', // 新增：研究分析类
+      '应用到', '用在', '结合', '适用于', // 新增：跨领域应用
+      '深入研究', '详细分析', '全面评估', // 新增：深度研究
+    ],
+    [TaskComplexity.VERY_COMPLEX]: [
+      '架构', ' redesign', '重写', '大规模', '系统级', '全流程',
+      '重新设计', '整体改造', '全面重构', // 新增：大型改造
+    ],
   };
 
   // 技术关键词列表
@@ -75,18 +86,14 @@ export class TaskAnalyzer {
     const prompt = submission.prompt.toLowerCase();
     const length = prompt.length;
 
-    // 基于提示词长度初步判断
-    if (length < 20) {
-      return TaskComplexity.SIMPLE;
-    }
-
-    // 基于关键词判断
+    // 基于关键词判断（优先级高于长度）
     let score = 0;
 
     for (const [level, keywords] of Object.entries(this.complexityKeywords)) {
       for (const keyword of keywords) {
         if (prompt.includes(keyword.toLowerCase())) {
-          switch (level) {
+          const levelNum = parseInt(level, 10);
+          switch (levelNum) {
             case TaskComplexity.VERY_COMPLEX:
               score += 4;
               break;
@@ -104,7 +111,17 @@ export class TaskAnalyzer {
       }
     }
 
-    // 基于长度调整
+    // 检测到外部资源链接（研究类任务）
+    if (/https?:\/\/github\.com/.test(prompt)) {
+      score += 3; // GitHub 项目研究 = MODERATE 起步
+    } else if (/https?:\/\//.test(prompt)) {
+      score += 1; // 有外部链接
+    }
+
+    // 基于长度调整（短消息如果没有复杂关键词则降低复杂度）
+    if (length < 20 && score === 0) {
+      return TaskComplexity.SIMPLE;
+    }
     if (length > 200) score += 1;
     if (length > 500) score += 2;
 
@@ -159,7 +176,7 @@ export class TaskAnalyzer {
       ]),
       hasExternalCalls: this.hasKeywords(lowerPrompt, [
         'API', '调用', '请求', 'http', 'fetch', 'axios', 'call', 'request',
-      ]),
+      ]) || /https?:\/\//.test(lowerPrompt), // 检测 URL 链接
       isRefactoring: this.hasKeywords(lowerPrompt, [
         '重构', '优化', '改进', '清理', 'refactor', 'optimize', 'improve',
       ]),

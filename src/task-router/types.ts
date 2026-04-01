@@ -29,10 +29,10 @@ export enum TaskPriority {
 // 任务复杂度枚举
 // ============================================
 export enum TaskComplexity {
-  SIMPLE = 'simple',           // 简单：< 5分钟
-  MODERATE = 'moderate',       // 中等：5-15分钟
-  COMPLEX = 'complex',         // 复杂：15-60分钟
-  VERY_COMPLEX = 'very_complex', // 非常复杂：> 60分钟
+  SIMPLE = 0,           // 简单：< 5分钟
+  MODERATE = 1,         // 中等：5-15分钟
+  COMPLEX = 2,          // 复杂：15-60分钟
+  VERY_COMPLEX = 3,     // 非常复杂：> 60分钟
 }
 
 // ============================================

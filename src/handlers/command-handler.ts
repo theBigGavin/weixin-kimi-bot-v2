@@ -8,6 +8,7 @@ import { Agent } from '../agent/types.js';
 import { parseCommand } from './message-utils.js';
 import { registry, CommandResult, CommandType, type CommandContext } from '../commands/index.js';
 import { recordCommandExecuted } from '../init/state.js';
+import { createAgentLogger } from '../logging/index.js';
 
 export { type CommandResult, type CommandContext, CommandType };
 
@@ -26,9 +27,10 @@ export class CommandHandler {
     agent: Agent,
     onProgress?: ProgressCallback
   ): Promise<CommandResult> {
+    const logger = createAgentLogger(agent.id);
     const parsed = parseCommand(message);
     if (!parsed) {
-      console.log(`[Command] 无法解析命令: "${message}"`);
+      logger.warn(`无法解析命令: "${message}"`);
       return {
         type: CommandType.UNKNOWN,
         success: false,
@@ -40,8 +42,8 @@ export class CommandHandler {
     const { command, args } = parsed;
     const startTime = Date.now();
     
-    console.log(`[Command] ┌─ 执行命令: /${command}${args.length > 0 ? ' ' + args.join(' ') : ''}`);
-    console.log(`[Command] │  Agent: ${agent.name} (${agent.id})`);
+    logger.info(`┌─ 执行命令: /${command}${args.length > 0 ? ' ' + args.join(' ') : ''}`);
+    logger.info(`│  Agent: ${agent.name} (${agent.id})`);
 
     const context: CommandContext = {
       agent,
@@ -55,16 +57,16 @@ export class CommandHandler {
       const duration = Date.now() - startTime;
       
       if (result.success) {
-        console.log(`[Command] └─ ✅ 成功 (${duration}ms)`);
+        logger.info(`└─ ✅ 成功 (${duration}ms)`);
         recordCommandExecuted();
       } else {
-        console.log(`[Command] └─ ❌ 失败 (${duration}ms): ${result.error || '未知错误'}`);
+        logger.warn(`└─ ❌ 失败 (${duration}ms): ${result.error || '未知错误'}`);
       }
       
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`[Command] └─ 💥 异常 (${duration}ms):`, error);
+      logger.error(`└─ 💥 异常 (${duration}ms):`, error);
       
       return {
         type: CommandType.UNKNOWN,

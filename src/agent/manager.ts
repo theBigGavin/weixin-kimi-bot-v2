@@ -4,6 +4,9 @@
  * 提供 Agent 的创建、查询、更新、删除和状态管理功能
  */
 
+/** 移除 readonly 修饰符的辅助类型 */
+export type Writable<T> = { -readonly [P in keyof T]: T[P] };
+
 import { AgentConfig } from '../types/index.js';
 import { Store } from '../store.js';
 import {
@@ -145,8 +148,9 @@ export class AgentManager {
    */
   async listAgents(): Promise<Agent[]> {
     const keys = await this.store.keys();
-    // 键可能包含命名空间分隔符(:)，需要检查agents前缀
-    const agentKeys = keys.filter(key => key.startsWith('agents:') || key.startsWith('agents/'));
+    // 只匹配一级 agent 键，排除子数据项（如 agents:xxx:credentials）
+    // 匹配 agents:agentId 或 agents/agentId，但不匹配 agents:agentId:subkey
+    const agentKeys = keys.filter(key => /^agents:[^:]+$/.test(key) || /^agents\/[^\/]+$/.test(key));
 
     const agents: Agent[] = [];
     for (const key of agentKeys) {
@@ -187,49 +191,66 @@ export class AgentManager {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
+    // 创建新的配置对象（不可变更新）
+    const newConfig: AgentConfig = {
+      ...agent.config,
+      ai: { ...agent.config.ai },
+      features: { ...agent.config.features },
+      memory: { ...agent.config.memory },
+      wechat: { ...agent.config.wechat },
+      workspace: { ...agent.config.workspace },
+      allowedWechatIds: [...agent.config.allowedWechatIds],
+    };
+
     // 应用更新
     if (updates.name !== undefined) {
-      agent.config.name = updates.name;
+      (newConfig as Writable<typeof newConfig>).name = updates.name;
     }
     if (updates.customSystemPrompt !== undefined) {
-      agent.config.ai.customSystemPrompt = updates.customSystemPrompt;
+      (newConfig.ai as Writable<typeof newConfig.ai>).customSystemPrompt = updates.customSystemPrompt;
     }
     if (updates.maxTurns !== undefined) {
-      agent.config.ai.maxTurns = updates.maxTurns;
+      (newConfig.ai as Writable<typeof newConfig.ai>).maxTurns = updates.maxTurns;
     }
     if (updates.temperature !== undefined) {
-      agent.config.ai.temperature = updates.temperature;
+      (newConfig.ai as Writable<typeof newConfig.ai>).temperature = updates.temperature;
     }
     if (updates.features) {
-      Object.assign(agent.config.features, updates.features);
+      Object.assign(newConfig.features, updates.features);
     }
     if (updates.memory) {
-      Object.assign(agent.config.memory, updates.memory);
+      Object.assign(newConfig.memory, updates.memory);
     }
     // Phase III: 共享绑定字段
     if (updates.visibility !== undefined) {
-      agent.config.visibility = updates.visibility;
+      (newConfig as Writable<typeof newConfig>).visibility = updates.visibility;
     }
     if (updates.maxBindings !== undefined) {
-      agent.config.maxBindings = updates.maxBindings;
+      (newConfig as Writable<typeof newConfig>).maxBindings = updates.maxBindings;
     }
     if (updates.currentBindingCount !== undefined) {
-      agent.config.currentBindingCount = updates.currentBindingCount;
+      (newConfig as Writable<typeof newConfig>).currentBindingCount = updates.currentBindingCount;
     }
     if (updates.allowedWechatIds !== undefined) {
-      agent.config.allowedWechatIds = updates.allowedWechatIds;
+      (newConfig as Writable<typeof newConfig>).allowedWechatIds = updates.allowedWechatIds;
     }
 
     // 验证更新后的配置
-    const validation = validateAgentConfig(agent.config);
+    const validation = validateAgentConfig(newConfig);
     if (!validation.valid) {
       throw new ValidationError({ update: validation.errors.join(', ') });
     }
 
-    // 保存
-    await this.saveAgent(agent);
+    // 更新 agent 配置
+    const updatedAgent: Agent = {
+      ...agent,
+      config: newConfig,
+    };
 
-    return agent;
+    // 保存
+    await this.saveAgent(updatedAgent);
+
+    return updatedAgent;
   }
 
   /**
@@ -460,9 +481,9 @@ export class AgentManager {
     const agent = await this.getAgent(agentId);
     if (!agent) return;
 
-    agent.config.currentBindingCount++;
+    const newCount = agent.config.currentBindingCount + 1;
     await this.updateAgent(agentId, {
-      currentBindingCount: agent.config.currentBindingCount,
+      currentBindingCount: newCount,
     });
   }
 
@@ -475,9 +496,9 @@ export class AgentManager {
     if (!agent) return;
 
     if (agent.config.currentBindingCount > 0) {
-      agent.config.currentBindingCount--;
+      const newCount = agent.config.currentBindingCount - 1;
       await this.updateAgent(agentId, {
-        currentBindingCount: agent.config.currentBindingCount,
+        currentBindingCount: newCount,
       });
     }
   }
@@ -491,7 +512,7 @@ export class AgentManager {
     const agent = await this.getAgent(agentId);
     if (!agent) return;
 
-    const allowedIds = agent.config.allowedWechatIds || [];
+    const allowedIds = [...agent.config.allowedWechatIds];
     if (!allowedIds.includes(wechatId)) {
       allowedIds.push(wechatId);
       await this.updateAgent(agentId, {
@@ -509,10 +530,8 @@ export class AgentManager {
     const agent = await this.getAgent(agentId);
     if (!agent) return;
 
-    const allowedIds = agent.config.allowedWechatIds || [];
-    const index = allowedIds.indexOf(wechatId);
-    if (index > -1) {
-      allowedIds.splice(index, 1);
+    const allowedIds = agent.config.allowedWechatIds.filter(id => id !== wechatId);
+    if (allowedIds.length !== agent.config.allowedWechatIds.length) {
       await this.updateAgent(agentId, {
         allowedWechatIds: allowedIds,
       });

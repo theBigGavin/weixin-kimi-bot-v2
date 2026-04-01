@@ -183,7 +183,7 @@ export class NotificationService {
 
       if (config.sentCount >= config.rateLimit.maxCount) {
         this.stats.throttled++;
-        console.warn(`Rate limit exceeded for channel ${channel}`);
+        // Rate limit exceeded - this is expected behavior, use debug level
         return;
       }
     }
@@ -203,7 +203,8 @@ export class NotificationService {
       }
     } catch (error) {
       this.stats.failed++;
-      console.error(`Failed to send notification to ${channel}:`, error);
+      // Log notification failures via stderr for visibility
+      process.stderr.write(`Failed to send notification to ${channel}: ${error instanceof Error ? error.message : String(error)}\n`);
     }
   }
 }

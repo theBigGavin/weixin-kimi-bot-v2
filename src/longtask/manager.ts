@@ -8,17 +8,18 @@ import { LongTask, LongTaskStatus, createLongTaskId, ProgressInfo } from './type
 import { TaskSubmission } from '../task-router/types.js';
 import { Store } from '../store.js';
 import { ACPManager } from '../acp/index.js';
+import { createAgentLogger, createRequestLogger } from '../logging/index.js';
 
 /**
  * 任务执行回调
  */
 export interface TaskExecutionCallbacks {
   /** 进度更新回调 */
-  onProgress?: (taskId: string, progress: number, message: string) => Promise<void>;
+  onProgress?: (task: LongTask, progress: number, message: string) => Promise<void>;
   /** 完成回调 */
-  onComplete?: (taskId: string, result: string) => Promise<void>;
+  onComplete?: (task: LongTask, result: string) => Promise<void>;
   /** 失败回调 */
-  onFail?: (taskId: string, error: string) => Promise<void>;
+  onFail?: (task: LongTask, error: string) => Promise<void>;
 }
 
 /**
@@ -72,9 +73,18 @@ export class LongTaskManager {
    * 提交任务
    * @param submission 任务提交
    * @param workspacePath Agent workspace path for isolation
+   * @param userId 用户ID
+   * @param agentId Agent ID
+   * @param contextToken 上下文Token
    * @returns 创建的任务
    */
-  submit(submission: TaskSubmission, workspacePath: string): LongTask {
+  submit(
+    submission: TaskSubmission,
+    workspacePath: string,
+    userId: string,
+    agentId: string,
+    contextToken: string
+  ): LongTask {
     const task: LongTask = {
       id: createLongTaskId(),
       submissionId: submission.id,
@@ -84,6 +94,9 @@ export class LongTaskManager {
       progressLogs: [],
       createdAt: Date.now(),
       workspacePath,
+      userId,
+      agentId,
+      contextToken,
     };
     this.tasks.set(task.id, task);
     this.saveTask(task);
@@ -114,7 +127,9 @@ export class LongTaskManager {
     await this.saveTask(task);
 
     // 异步执行任务
-    this.executeTask(task, userId).catch(console.error);
+    this.executeTask(task, userId).catch((err) => {
+      createRequestLogger(task.id).error('执行任务失败:', err);
+    });
 
     return true;
   }
@@ -176,9 +191,9 @@ export class LongTaskManager {
     // 触发回调
     if (this.callbacks.onProgress) {
       try {
-        await this.callbacks.onProgress(taskId, percent, message);
+        await this.callbacks.onProgress(task, percent, message);
       } catch (e) {
-        console.error('进度回调失败:', e);
+        createRequestLogger(taskId).error('进度回调失败:', e);
       }
     }
 
@@ -202,9 +217,9 @@ export class LongTaskManager {
     // 触发回调
     if (this.callbacks.onComplete) {
       try {
-        await this.callbacks.onComplete(taskId, result);
+        await this.callbacks.onComplete(task, result);
       } catch (e) {
-        console.error('完成回调失败:', e);
+        createRequestLogger(taskId).error('完成回调失败:', e);
       }
     }
 
@@ -230,9 +245,9 @@ export class LongTaskManager {
     // 触发回调
     if (this.callbacks.onFail) {
       try {
-        await this.callbacks.onFail(taskId, error);
+        await this.callbacks.onFail(task, error);
       } catch (e) {
-        console.error('失败回调失败:', e);
+        createRequestLogger(taskId).error('失败回调失败:', e);
       }
     }
 
@@ -318,7 +333,9 @@ export class LongTaskManager {
     if (pending.length > 0) {
       // 这里需要知道 userId，简化处理使用第一个任务的 submissionId 作为标识
       // 实际应该通过 submissionId 查询到 userId
-      this.start(pending[0].id, 'unknown').catch(console.error);
+      this.start(pending[0].id, 'unknown').catch((err) => {
+        createRequestLogger(pending[0].id).error('启动任务失败:', err);
+      });
     }
   }
 
@@ -330,7 +347,7 @@ export class LongTaskManager {
     try {
       await this.store.set(`longtasks/${task.id}`, task);
     } catch (e) {
-      console.error('保存长任务失败:', e);
+      createRequestLogger(task.id).error('保存长任务失败:', e);
     }
   }
 
@@ -351,7 +368,7 @@ export class LongTaskManager {
         }
       }
     } catch (e) {
-      console.error('加载长任务失败:', e);
+      createAgentLogger('system').error('加载长任务失败:', e);
     }
   }
 

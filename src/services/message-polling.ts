@@ -5,6 +5,7 @@
  */
 
 import type { ParsedWeixinMessage } from '../ilink/types.js';
+import { getDefaultLogger } from '../logging/index.js';
 
 export interface PollingConfig {
   interval: number;
@@ -124,7 +125,7 @@ export class MessagePollingService {
         } catch (error) {
           // Log but don't stop polling
           this.stats.errors++;
-          console.error('Message handler error:', error);
+          getDefaultLogger().error('Message handler error:', error);
         }
 
         // Track processed ID
@@ -140,11 +141,11 @@ export class MessagePollingService {
     } catch (error) {
       this.errorCount++;
       this.stats.errors++;
-      console.error('Poll error:', error);
+      getDefaultLogger().error('Poll error:', error);
 
       // Check if max retries reached
       if (this.errorCount >= this.config.maxRetries) {
-        console.error(`Max retries (${this.config.maxRetries}) reached, stopping polling`);
+        getDefaultLogger().error(`Max retries (${this.config.maxRetries}) reached, stopping polling`);
         this.stop();
         return;
       }

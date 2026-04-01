@@ -14,6 +14,7 @@ import {
 import { TaskSubmission } from '../task-router/types.js';
 import { Store } from '../store.js';
 import { ACPManager } from '../acp/index.js';
+import { createRequestLogger, getDefaultLogger } from '../logging/index.js';
 
 /**
  * 流程任务回调
@@ -193,7 +194,7 @@ export class FlowTaskManager {
         try {
           await this.callbacks.onWaitingConfirm(taskId, step);
         } catch (e) {
-          console.error('等待确认回调失败:', e);
+          createRequestLogger(taskId).error('等待确认回调失败:', e);
         }
       }
       return;
@@ -218,7 +219,7 @@ export class FlowTaskManager {
         try {
           await this.callbacks.onStepComplete(taskId, step.order, result);
         } catch (e) {
-          console.error('步骤完成回调失败:', e);
+          createRequestLogger(taskId).error('步骤完成回调失败:', e);
         }
       }
 
@@ -244,7 +245,7 @@ export class FlowTaskManager {
         try {
           await this.callbacks.onFail(taskId, String(error));
         } catch (e) {
-          console.error('失败回调失败:', e);
+          createRequestLogger(taskId).error('失败回调失败:', e);
         }
       }
     }
@@ -303,7 +304,7 @@ export class FlowTaskManager {
         try {
           await this.callbacks.onStepComplete(taskId, step.order, result);
         } catch (e) {
-          console.error('步骤完成回调失败:', e);
+          createRequestLogger(taskId).error('步骤完成回调失败:', e);
         }
       }
 
@@ -327,7 +328,7 @@ export class FlowTaskManager {
         try {
           await this.callbacks.onFail(taskId, String(error));
         } catch (e) {
-          console.error('失败回调失败:', e);
+          createRequestLogger(taskId).error('失败回调失败:', e);
         }
       }
 
@@ -377,7 +378,7 @@ export class FlowTaskManager {
       try {
         await this.callbacks.onComplete(taskId, task.results);
       } catch (e) {
-        console.error('完成回调失败:', e);
+        createRequestLogger(task.id).error('完成回调失败:', e);
       }
     }
   }
@@ -440,7 +441,7 @@ export class FlowTaskManager {
     try {
       await this.store.set(`flowtasks/${task.id}`, task);
     } catch (e) {
-      console.error('保存流程任务失败:', e);
+      createRequestLogger(task.id).error('保存流程任务失败:', e);
     }
   }
 
@@ -461,7 +462,7 @@ export class FlowTaskManager {
         }
       }
     } catch (e) {
-      console.error('加载流程任务失败:', e);
+      getDefaultLogger().error('加载流程任务失败:', e);
     }
   }
 

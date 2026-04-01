@@ -11,6 +11,7 @@ import { Paths } from '../paths.js';
 import { AgentManager } from '../agent/manager.js';
 import { WechatManager } from '../wechat/manager.js';
 import { createStore } from '../store.js';
+import { getDefaultLogger } from '../logging/index.js';
 import {
   BackupConfig,
   BackupInfo,
@@ -167,7 +168,7 @@ export class BackupManager {
     }
 
     const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as BackupManifest;
-    console.log(`恢复备份: ${new Date(manifest.createdAt).toLocaleString()}`);
+    getDefaultLogger().info(`恢复备份: ${new Date(manifest.createdAt).toLocaleString()}`);
 
     // 恢复主配置
     await this.restoreMasterConfig(backupDir);
@@ -181,7 +182,7 @@ export class BackupManager {
     // 恢复微信绑定
     await this.restoreWechatBindings(backupDir);
 
-    console.log('恢复完成');
+    getDefaultLogger().info('恢复完成');
   }
 
   /**

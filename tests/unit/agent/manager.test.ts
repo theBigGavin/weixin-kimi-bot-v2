@@ -111,6 +111,24 @@ describe('agent/manager', () => {
       const agents = await manager.listAgents();
       expect(agents).toEqual([]);
     });
+
+    it('应该正确处理存在子数据键的情况', async () => {
+      // 创建 Agent
+      const agent = await manager.createAgent({
+        name: 'AgentWithSubkeys',
+        wechatAccountId: 'wxid_sub',
+      });
+
+      // 模拟子数据键（如 credentials、memory 等）
+      await store.set(`agents/${agent.config.id}:credentials`, { token: 'secret' });
+      await store.set(`agents/${agent.config.id}:memory`, { data: [] });
+      await store.set(`agents/${agent.config.id}:skills:test-skill`, { enabled: true });
+
+      // listAgents 应该只返回 Agent 本身，不应该因为子键而崩溃
+      const agents = await manager.listAgents();
+      expect(agents).toHaveLength(1);
+      expect(agents[0].config.id).toBe(agent.config.id);
+    });
   });
 
   describe('updateAgent', () => {

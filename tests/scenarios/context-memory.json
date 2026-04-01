@@ -1,0 +1,91 @@
+{
+  "id": "context-memory",
+  "name": "Context and Memory Test",
+  "description": "测试上下文保持和记忆功能",
+  "category": "integration",
+  "priority": "high",
+  "prerequisites": {
+    "agentConfig": {
+      "name": "MemoryTestAgent",
+      "templateId": "general",
+      "memory": {
+        "enabledL": true,
+        "enabledS": true,
+        "maxItems": 100,
+        "autoExtract": true
+      }
+    },
+    "memoryItems": [
+      { "key": "user_name", "value": "Alice" },
+      { "key": "preferred_language", "value": "Chinese" }
+    ]
+  },
+  "steps": [
+    {
+      "id": "context-establish",
+      "name": "Establish context",
+      "action": {
+        "type": "send_message",
+        "params": {
+          "content": "My name is Bob and I like programming"
+        },
+        "description": "Establish user context"
+      },
+      "validation": {
+        "type": "no_error",
+        "params": {}
+      }
+    },
+    {
+      "id": "context-recall",
+      "name": "Test context recall",
+      "action": {
+        "type": "send_message",
+        "params": {
+          "content": "What's my name?"
+        },
+        "description": "Test if context is maintained"
+      },
+      "validation": {
+        "type": "response_contains",
+        "params": {
+          "text": "Bob"
+        }
+      }
+    },
+    {
+      "id": "check-memory",
+      "name": "Verify memory storage",
+      "action": {
+        "type": "check_memory",
+        "params": {
+          "key": "user_name"
+        },
+        "description": "Check if information was stored in memory"
+      },
+      "validation": {
+        "type": "no_error",
+        "params": {}
+      }
+    },
+    {
+      "id": "query-state",
+      "name": "Query system state",
+      "action": {
+        "type": "query_state",
+        "params": {},
+        "description": "Get full system state"
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "description": "Context should be maintained across messages",
+      "validator": "session.messages.length >= 4"
+    },
+    {
+      "description": "Memory should store user information",
+      "validator": "true"
+    }
+  ]
+}

@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * Get the home directory to use for storage
@@ -100,6 +101,6 @@ export function saveConfig(config: Partial<BotConfig>): void {
   
   // Log only when not in test mode
   if (!process.env.WEIXIN_KIMI_BOT_HOME) {
-    console.log(`配置已保存到 ${filePath}`);
+    getDefaultLogger().info(`配置已保存到 ${filePath}`);
   }
 }

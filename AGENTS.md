@@ -25,7 +25,7 @@ weixin-kimi-bot 是一个基于 TDD（测试驱动开发）方法重新开发的
 - **构建工具**: TypeScript 编译器 (tsc)
 - **开发运行**: tsx
 - **微信协议**: 腾讯 iLink HTTP API
-- **AI 服务**: Kimi CLI
+- **AI 服务**: ACP (Agent Client Protocol)
 - **进程管理**: PM2 (可选)
 
 ## 项目结构
@@ -62,12 +62,16 @@ weixin-kimi-bot/
 │   │   └── manager.ts        # 流程任务管理
 │   ├── workflow/             # 确定性工作流引擎
 │   │   └── engine.ts         # 工作流执行引擎
-│   ├── kimi/                 # Kimi CLI 集成
-│   │   ├── types.ts          # Kimi 调用类型定义
-│   │   └── client.ts         # Kimi CLI 客户端
+│   ├── acp/                  # ACP (Agent Client Protocol) 集成
+│   │   ├── types.ts          # ACP 类型定义
+│   │   ├── client.ts         # ACP 客户端
+│   │   └── manager.ts        # ACP 连接管理器
 │   ├── ilink/                # 微信 iLink 协议封装
 │   │   ├── types.ts          # 微信消息类型定义
 │   │   └── client.ts         # iLink API 客户端
+│   ├── logging/              # 日志系统
+│   │   ├── types.ts          # 日志类型定义
+│   │   └── index.ts          # 日志实现（基于 pino）
 │   ├── scheduler/            # 定时任务调度
 │   │   └── manager.ts        # Cron 任务管理器
 │   ├── memory/               # 长期记忆管理（预留目录）
@@ -75,6 +79,9 @@ weixin-kimi-bot/
 │   │   └── service.ts        # 通知服务实现
 │   ├── services/             # 服务层（消息轮询、会话管理）
 │   │   └── message-polling.ts    # 微信消息轮询服务
+│   ├── debug/                # 调试接口（供 Kimi Code 测试）
+│   │   ├── interface.ts      # HTTP 调试服务器
+│   │   └── client.ts         # 调试客户端
 │   ├── templates/            # 能力模板
 │   │   ├── definitions.ts    # 模板定义和工具函数
 │   │   ├── loader.ts         # 模板加载器
@@ -97,7 +104,7 @@ weixin-kimi-bot/
 │   │   ├── flowtask/
 │   │   ├── handlers/
 │   │   ├── ilink/
-│   │   ├── kimi/
+│   │   ├── acp/
 │   │   ├── longtask/
 │   │   ├── notifications/
 │   │   ├── scheduler/
@@ -149,6 +156,9 @@ weixin-kimi-bot/
 ├── templates/                   # 自定义能力模板
 ├── shared/                      # 共享数据
 │   └── scheduled-tasks.json    # 定时任务
+├── logs/                        # 应用日志目录
+│   ├── app-YYYY-MM-DD.log      # 应用日志（按日期滚动）
+│   └── ...
 └── master-config.json          # 主配置
 ```
 
@@ -168,7 +178,7 @@ weixin-kimi-bot/
 ├─────────────────────────────────────────────────────────────┤
 │ 5. Agent 管理层 (Agent 配置 / 能力模板 / 记忆管理 / Prompt 构建) │
 ├─────────────────────────────────────────────────────────────┤
-│ 6. 执行引擎层 (Kimi 调用 / 工作流引擎 / 定时任务 / 通知服务)     │
+│ 6. 执行引擎层 (ACP 调用 / 工作流引擎 / 定时任务 / 通知服务)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -202,6 +212,49 @@ weixin-kimi-bot/
 | Direct | 简单问答、查资料、小修改 | 同步执行，快速响应 |
 | LongTask | 代码重构、深度分析、批量搜索 | 异步后台执行，支持进度通知 |
 | FlowTask | 部署上线、数据迁移、架构设计 | 结构化流程，人机协作确认 |
+
+### 日志系统
+
+系统使用基于 **pino** 的日志模块，支持结构化日志输出。
+
+#### 日志级别
+
+| 级别 | 优先级 | 用途 |
+|------|--------|------|
+| trace | 10 | 最详细的追踪信息 |
+| debug | 20 | 调试信息 |
+| info | 30 | 一般信息（默认） |
+| warn | 40 | 警告信息 |
+| error | 50 | 错误信息 |
+| fatal | 60 | 致命错误 |
+
+#### 使用示例
+
+```typescript
+import { createAgentLogger, getDefaultLogger, info, error } from './logging/index.js';
+
+// 创建带 Agent 上下文的日志记录器
+const logger = createAgentLogger('agent_123', 'wxid_test');
+logger.info('消息已收到', { content: 'hello' });
+logger.error('处理失败', error);
+
+// 使用默认日志记录器
+getDefaultLogger().warn('警告信息');
+
+// 使用快捷函数
+info('一般信息');
+error('错误信息', err);
+```
+
+#### 环境配置
+
+| 环境 | 日志级别 | 文件输出 | 彩色输出 |
+|------|----------|----------|----------|
+| development | debug | 是 | 是 |
+| test | error | 否 | 否 |
+| production | info | 是 | 否 |
+
+通过设置 `NODE_ENV` 环境变量自动切换配置。
 
 ## 开发规范
 
@@ -427,6 +480,30 @@ interface AgentConfig {
 5. **错误信息**: 对外暴露的错误信息不应包含内部实现细节
 6. **数据隔离**: 每个 Agent 的数据必须完全隔离，防止交叉访问
 
+## Debug Interface - 调试接口
+
+在系统正常运行时（`npm run dev`）提供 HTTP 接口，供 Kimi Code / Agent 直接发送消息并接收响应。
+
+### 快速使用
+
+```bash
+# 1. 启动系统（带调试接口）
+DEBUG_ENABLED=true npm run dev
+
+# 2. 发送测试消息
+npm run ask "Hello"
+npm run ask "/help"
+```
+
+### 核心特性
+
+- **真实交互**: 不走 Mock，真实调用业务逻辑
+- **简单直接**: 一行命令即可测试
+- **HTTP 接口**: 支持编程调用
+
+### 文档
+- `DEBUG_INTERFACE.md` - 完整使用指南
+
 ## 文档索引
 
 ### 架构文档
@@ -451,5 +528,5 @@ interface AgentConfig {
 
 ---
 
-*本文档最后更新: 2026-03-31*
-*项目版本: 1.0.0*
+*本文档最后更新: 2026-04-01*
+*项目版本: 1.1.0*

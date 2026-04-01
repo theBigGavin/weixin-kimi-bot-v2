@@ -9,6 +9,7 @@ import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import type { AgentMemory } from './types.js';
 import { createDefaultMemory } from './types.js';
+import { createAgentLogger } from '../logging/index.js';
 
 /**
  * 记忆管理器选项
@@ -53,7 +54,7 @@ export class MemoryManager {
         return memory;
       }
     } catch (error) {
-      console.error(`[MemoryManager] Failed to load memory for ${agentId}:`, error);
+      createAgentLogger(agentId).error('Failed to load memory:', error);
     }
     
     // 返回默认记忆
@@ -76,7 +77,7 @@ export class MemoryManager {
       // 写入文件
       await writeFile(memoryPath, JSON.stringify(memory, null, 2), 'utf-8');
     } catch (error) {
-      console.error(`[MemoryManager] Failed to save memory:`, error);
+      createAgentLogger(memory.metadata.agentId).error('Failed to save memory:', error);
       throw error;
     }
   }
@@ -100,7 +101,7 @@ export class MemoryManager {
         await writeFile(memoryPath, '', 'utf-8');
       }
     } catch (error) {
-      console.error(`[MemoryManager] Failed to delete memory:`, error);
+      createAgentLogger(agentId).error('Failed to delete memory:', error);
     }
   }
 

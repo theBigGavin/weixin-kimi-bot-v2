@@ -51,6 +51,37 @@ describe('task-router/analyzer', () => {
       expect(analysis.features.hasExternalCalls).toBe(true);
     });
 
+    it('应该检测 URL 链接作为外部调用', () => {
+      const submission = createSubmission('学习下这个项目 https://github.com/NousResearch/hermes-agent');
+      const analysis = analyzer.analyze(submission);
+
+      expect(analysis.features.hasExternalCalls).toBe(true);
+    });
+
+    it('GitHub 链接应该提升复杂度', () => {
+      const submission = createSubmission('学习下这个项目 https://github.com/NousResearch/hermes-agent，看能不能用在股票投资上');
+      const analysis = analyzer.analyze(submission);
+
+      // GitHub 链接应该使复杂度至少为 MODERATE
+      expect(analysis.complexity).toBeGreaterThanOrEqual(TaskComplexity.MODERATE);
+    });
+
+    it('应该识别研究类任务', () => {
+      const submission = createSubmission('研究下这个策略能否用于期货');
+      const analysis = analyzer.analyze(submission);
+
+      // 研究关键词应该使复杂度至少为 MODERATE
+      expect(analysis.complexity).toBeGreaterThanOrEqual(TaskComplexity.MODERATE);
+    });
+
+    it('应该识别分析类任务', () => {
+      const submission = createSubmission('分析这个GitHub项目的架构');
+      const analysis = analyzer.analyze(submission);
+
+      // 分析关键词应该使复杂度至少为 COMPLEX
+      expect(analysis.complexity).toBeGreaterThanOrEqual(TaskComplexity.COMPLEX);
+    });
+
     it('复杂任务应该有高风险等级', () => {
       const submission = createSubmission('重新设计整个系统架构，包括数据库迁移和API重构');
       const analysis = analyzer.analyze(submission);

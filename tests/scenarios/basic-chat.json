@@ -1,0 +1,47 @@
+{
+  "id": "basic-chat",
+  "name": "Basic Chat Flow",
+  "description": "测试基本的对话流程和响应能力",
+  "category": "functional",
+  "priority": "critical",
+  "steps": [
+    {
+      "id": "step-1",
+      "name": "Send greeting",
+      "action": {
+        "type": "send_message",
+        "params": {
+          "content": "Hello, can you help me?"
+        },
+        "description": "Send a greeting message"
+      },
+      "validation": {
+        "type": "no_error",
+        "params": {}
+      }
+    },
+    {
+      "id": "step-2",
+      "name": "Ask a question",
+      "action": {
+        "type": "send_message",
+        "params": {
+          "content": "What can you do for me?"
+        },
+        "description": "Ask about capabilities"
+      },
+      "validation": {
+        "type": "response_contains",
+        "params": {
+          "text": "help"
+        }
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "description": "Session should have at least 2 messages",
+      "validator": "session.messages.length >= 2"
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { Paths } from '../paths.js';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * 系统主配置
@@ -127,7 +128,7 @@ export async function loadMasterConfig(): Promise<MasterConfig> {
     return mergeWithDefaults(config);
   } catch (error) {
     // 如果配置文件损坏，返回默认配置
-    console.warn('配置文件损坏，使用默认配置:', error);
+    getDefaultLogger().warn('配置文件损坏，使用默认配置:', error);
     return createDefaultMasterConfig();
   }
 }

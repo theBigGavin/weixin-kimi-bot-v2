@@ -7,6 +7,7 @@
 
 import { mkdir, writeFile, readdir, stat, unlink } from 'fs/promises';
 import { join } from 'path';
+import { createAgentLogger } from '../logging/index.js';
 
 /**
  * Workspace 配置
@@ -117,9 +118,7 @@ export class WorkspaceManager {
     // 创建 README 文件
     await this.createReadme();
 
-    console.log(`[Workspace] Initialized for agent ${this.config.agentId}`);
-    console.log(`  Path: ${this.config.path}`);
-    console.log(`  PARA: ${this.config.paraEnabled ? 'enabled' : 'disabled'}`);
+    createAgentLogger(this.config.agentId).info(`Workspace initialized, path: ${this.config.path}, PARA: ${this.config.paraEnabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -151,7 +150,7 @@ export class WorkspaceManager {
     }
 
     if (deletedCount > 0) {
-      console.log(`[Workspace] Cleaned up ${deletedCount} old tmp files for ${this.config.agentId}`);
+      createAgentLogger(this.config.agentId).info(`Cleaned up ${deletedCount} old tmp files`);
     }
 
     return deletedCount;

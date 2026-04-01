@@ -269,7 +269,7 @@ export class ProjectManager {
     // 如果需要，删除文件
     if (deleteFiles) {
       // TODO: 实现递归删除目录
-      console.warn(`[ProjectManager] 删除项目文件未实现: ${project.path}`);
+      // TODO: 实现项目文件删除
     }
 
     await this.saveConfig();

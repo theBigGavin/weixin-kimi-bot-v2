@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * Get the home directory to use for storage
@@ -82,7 +83,7 @@ export function saveCredentials(creds: Omit<Credentials, 'savedAt'>): void {
   
   // Log only when not in test mode to avoid test output noise
   if (!process.env.WEIXIN_KIMI_BOT_HOME) {
-    console.log(`凭证已保存到 ${filePath}`);
+    getDefaultLogger().info(`凭证已保存到 ${filePath}`);
   }
 }
 

@@ -17,6 +17,7 @@ import { dialogueCache } from '../init/state.js';
 import { waitingFlowTasks, CONFIRM_KEYWORDS, CANCEL_KEYWORDS, SKIP_KEYWORDS } from '../init/state.js';
 import { createTaskSubmission, TaskPriority } from '../task-router/index.js';
 import { ProjectManager } from '../projectspace/manager.js';
+import { createAgentLogger } from '../logging/index.js';
 
 /**
  * 获取当前工作目录（考虑项目切换）
@@ -45,7 +46,7 @@ export async function executeDirect(
   contextToken: string,
   agentId: string
 ): Promise<void> {
-  console.log(`[${agentId}] 🚀 DIRECT mode execution`);
+  createAgentLogger(agentId).info('🚀 DIRECT mode execution');
   
   const start = Date.now();
   
@@ -62,16 +63,33 @@ export async function executeDirect(
   dialogueCache.set(fromUser, dialogue);
   
   try {
-    const manager = initACPManager();
+    const manager = await initACPManager();
     const agent = await getAgent(agentId, fromUser);
     const workspacePath = await getWorkingDirectory(agentId, agent.config.workspace.path);
-    const response = await manager.prompt(fromUser, { text }, workspacePath);
+    const response = await manager.prompt(fromUser, { text }, workspacePath, agentId);
 
     const duration = Date.now() - start;
-    console.log(`[${agentId}] ✅ Kimi 响应完成 (${(duration / 1000).toFixed(1)}s)`);
+    createAgentLogger(agentId).info(`✅ Kimi 响应完成 (${(duration / 1000).toFixed(1)}s)`);
 
     if (response.error) {
-      throw new Error(response.error);
+      // 打印完整错误对象用于诊断
+      createAgentLogger(agentId).error(`ACP error details:`, JSON.stringify(response, null, 2));
+      
+      // 处理各种错误格式
+      let errorMsg: string;
+      if (typeof response.error === 'string') {
+        errorMsg = response.error;
+      } else if (response.error && typeof response.error === 'object') {
+        // 尝试提取错误信息
+        const errObj = response.error as Record<string, unknown>;
+        errorMsg = (errObj.message as string) 
+          || (errObj.error as string) 
+          || JSON.stringify(response.error);
+      } else {
+        errorMsg = String(response.error);
+      }
+      createAgentLogger(agentId).error(`ACP error message:`, errorMsg);
+      throw new Error(errorMsg);
     }
 
     dialogue.push({
@@ -86,22 +104,22 @@ export async function executeDirect(
       response.text,
       contextToken
     );
-    console.log(
-      `[${agentId}] 📤 已发送回复 (${response.text.length} chars, ${chunks} 条消息)`
+    createAgentLogger(agentId).info(
+      `📤 已发送回复 (${response.text.length} chars, ${chunks} 条消息)`
     );
 
     if (response.toolCalls && response.toolCalls.length > 0) {
-      console.log(`[${agentId}] 🔧 工具调用: ${response.toolCalls.length} 次`);
+      createAgentLogger(agentId).info(`🔧 工具调用: ${response.toolCalls.length} 次`);
       for (const tool of response.toolCalls) {
-        console.log(`     - ${tool.title} (${tool.status})`);
+        createAgentLogger(agentId).info(`     - ${tool.title} (${tool.status})`);
       }
     }
 
     await extractAndSaveMemory(fromUser, agentId);
 
   } catch (err) {
-    console.error(`[${agentId}] ❌ 处理失败:`, err);
     const errorMsg = err instanceof Error ? err.message : String(err);
+    createAgentLogger(agentId).error(`❌ 处理失败:`, errorMsg);
     await client
       .sendText(fromUser, `处理消息时出错: ${errorMsg}`, contextToken)
       .catch(() => {});
@@ -124,7 +142,7 @@ export async function extractAndSaveMemory(
     
     const agent = await getAgent(agentId, userId);
     if (!agent) {
-      console.log(`[Memory] Agent not found: ${agentId}`);
+      createAgentLogger(agentId).warn(`[Memory] Agent not found: ${agentId}`);
       return;
     }
     
@@ -134,17 +152,17 @@ export async function extractAndSaveMemory(
       return;
     }
     
-    console.log(`[Memory] Extracting memory for ${agentId}...`);
+    createAgentLogger(agentId).info(`[Memory] Extracting memory for ${agentId}...`);
     
     const extractionPrompt = extractor.buildExtractionPrompt(dialogue);
     
     try {
-      const acp = initACPManager();
+      const acp = await initACPManager();
       const workspacePath = await getWorkingDirectory(agentId, agent.config.workspace.path);
-      const extractionResult = await acp.prompt(userId, { text: extractionPrompt }, workspacePath);
+      const extractionResult = await acp.prompt(userId, { text: extractionPrompt }, workspacePath, agentId);
       
       if (extractionResult.error) {
-        console.error('[Memory] Extraction failed:', extractionResult.error);
+        createAgentLogger(agentId).error('[Memory] Extraction failed:', extractionResult.error);
         return;
       }
       
@@ -156,22 +174,22 @@ export async function extractAndSaveMemory(
         (extraction.learnings?.length || 0);
       
       if (totalExtracted === 0) {
-        console.log('[Memory] No new information to extract');
+        createAgentLogger(agentId).info('[Memory] No new information to extract');
         return;
       }
       
       memory = extractor.mergeIntoMemory(memory, extraction);
       await memManager.saveMemory(memory);
       
-      console.log(`[Memory] Saved: ${extraction.facts?.length || 0} facts, ${extraction.projects?.length || 0} projects`);
+      createAgentLogger(agentId).info(`[Memory] Saved: ${extraction.facts?.length || 0} facts, ${extraction.projects?.length || 0} projects`);
       dialogueCache.delete(userId);
       
     } catch (extractErr) {
-      console.error('[Memory] Extraction error:', extractErr);
+      createAgentLogger(agentId).error('[Memory] Extraction error:', extractErr);
     }
     
   } catch (err) {
-    console.error('[Memory] Failed to extract/save memory:', err);
+    createAgentLogger(agentId).error('[Memory] Failed to extract/save memory:', err);
   }
 }
 
@@ -182,7 +200,7 @@ export async function executeLongTask(
   contextToken: string,
   agentId: string
 ): Promise<void> {
-  console.log(`[${agentId}] ⏳ LONGTASK mode execution`);
+  createAgentLogger(agentId).info(`⏳ LONGTASK mode execution`);
   
   const ltManager = getLongTaskManager()!;
   const agent = await getAgent(agentId, fromUser);
@@ -196,19 +214,19 @@ export async function executeLongTask(
     priority: TaskPriority.NORMAL,
   });
   
-  const task = ltManager.submit(submission, workspacePath);
+  const task = ltManager.submit(submission, workspacePath, fromUser, agentId, contextToken);
   
   const ackMessage = 
     `📋 任务已提交（长任务模式）\n` +
     `任务ID: ${task.id}\n` +
     `状态: 等待执行...\n\n` +
-    `任务将在后台执行，完成后可通过 /task status ${task.id} 查看结果。`;
+    `任务完成后会自动通知您，也可通过 /task status ${task.id} 查询。`;
   
   await client.sendText(fromUser, ackMessage, contextToken);
   
   const started = await ltManager.start(task.id, fromUser);
   if (started) {
-    console.log(`[${agentId}] ✅ LongTask ${task.id} started`);
+    createAgentLogger(agentId).info(`✅ LongTask ${task.id} started`);
   } else {
     await client.sendText(
       fromUser, 
@@ -225,7 +243,7 @@ export async function executeFlowTask(
   contextToken: string,
   agentId: string
 ): Promise<void> {
-  console.log(`[${agentId}] 🔄 FLOWTASK mode execution`);
+  createAgentLogger(agentId).info(`🔄 FLOWTASK mode execution`);
   
   const ftManager = getFlowTaskManager()!;
   const agent = await getAgent(agentId, fromUser);
@@ -255,7 +273,7 @@ export async function executeFlowTask(
   
   waitingFlowTasks.set(fromUser, { taskId: task.id, agentId });
   
-  console.log(`[${agentId}] ⏳ FlowTask ${task.id} waiting for confirmation`);
+  createAgentLogger(agentId).info(`⏳ FlowTask ${task.id} waiting for confirmation`);
 }
 
 export async function handleFlowTaskConfirmation(

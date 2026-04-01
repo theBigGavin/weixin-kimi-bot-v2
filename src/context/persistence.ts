@@ -8,6 +8,7 @@
 
 import { SessionContext } from './types.js';
 import { Store, StoreError } from '../store.js';
+import { createAgentLogger, getDefaultLogger } from '../logging/index.js';
 
 // ============================================================================
 // Error Types
@@ -59,7 +60,7 @@ export class ContextPersistence {
     } catch (error) {
       // 存储错误（非 ENOENT）记录但不抛出，返回 null
       if (error instanceof StoreError) {
-        console.warn(`Persistence: Failed to load context for ${userId}/${agentId}: ${error.message}`);
+        createAgentLogger(agentId).warn(`Persistence: Failed to load context for ${userId}/${agentId}: ${error.message}`);
         return null;
       }
       throw error;
@@ -91,7 +92,7 @@ export class ContextPersistence {
     try {
       keys = await this.store.keys();
     } catch (error) {
-      console.warn(`Persistence: Failed to list keys for user ${userId}: ${(error as Error).message}`);
+      getDefaultLogger().warn(`Persistence: Failed to list keys for user ${userId}: ${(error as Error).message}`);
       return [];
     }
     
@@ -105,7 +106,7 @@ export class ContextPersistence {
           contexts.push(context);
         }
       } catch (error) {
-        console.warn(`Persistence: Failed to load context from ${key}: ${(error as Error).message}`);
+        getDefaultLogger().warn(`Persistence: Failed to load context from ${key}: ${(error as Error).message}`);
       }
     }
     
@@ -120,7 +121,7 @@ export class ContextPersistence {
     try {
       keys = await this.store.keys();
     } catch (error) {
-      console.warn(`Persistence: Failed to list keys for agent ${agentId}: ${(error as Error).message}`);
+      createAgentLogger(agentId).warn(`Persistence: Failed to list keys for agent ${agentId}: ${(error as Error).message}`);
       return [];
     }
     
@@ -134,7 +135,7 @@ export class ContextPersistence {
           contexts.push(context);
         }
       } catch (error) {
-        console.warn(`Persistence: Failed to load context from ${key}: ${(error as Error).message}`);
+        createAgentLogger(agentId).warn(`Persistence: Failed to load context from ${key}: ${(error as Error).message}`);
       }
     }
     
@@ -183,7 +184,7 @@ export class ContextPersistence {
     try {
       return await this.store.get<SessionContext & { archivedAt: number }>(key);
     } catch (error) {
-      console.warn(`Persistence: Failed to get archived context ${contextId}: ${(error as Error).message}`);
+      getDefaultLogger().warn(`Persistence: Failed to get archived context ${contextId}: ${(error as Error).message}`);
       return null;
     }
   }
@@ -196,7 +197,7 @@ export class ContextPersistence {
     try {
       keys = await this.store.keys();
     } catch (error) {
-      console.warn(`Persistence: Failed to list keys for cleanup: ${(error as Error).message}`);
+      getDefaultLogger().warn(`Persistence: Failed to list keys for cleanup: ${(error as Error).message}`);
       return 0;
     }
     
@@ -213,7 +214,7 @@ export class ContextPersistence {
           count++;
         }
       } catch (error) {
-        console.warn(`Persistence: Failed to process ${key} during cleanup: ${(error as Error).message}`);
+        getDefaultLogger().warn(`Persistence: Failed to process ${key} during cleanup: ${(error as Error).message}`);
       }
     }
     
@@ -243,10 +244,10 @@ export class ContextExporter {
       if (context.id && context.userId && context.agentId) {
         return context;
       }
-      console.warn('Persistence: Invalid context structure in import');
+      getDefaultLogger().warn('Persistence: Invalid context structure in import');
       return null;
     } catch (error) {
-      console.warn(`Persistence: Failed to parse context JSON: ${(error as Error).message}`);
+      getDefaultLogger().warn(`Persistence: Failed to parse context JSON: ${(error as Error).message}`);
       return null;
     }
   }
@@ -265,18 +266,18 @@ export class ContextExporter {
     try {
       const contexts = JSON.parse(json) as SessionContext[];
       if (!Array.isArray(contexts)) {
-        console.warn('Persistence: Import expects an array of contexts');
+        getDefaultLogger().warn('Persistence: Import expects an array of contexts');
         return [];
       }
       return contexts.filter(c => {
         if (!c.id || !c.userId) {
-          console.warn('Persistence: Skipping invalid context in import');
+          getDefaultLogger().warn('Persistence: Skipping invalid context in import');
           return false;
         }
         return true;
       });
     } catch (error) {
-      console.warn(`Persistence: Failed to parse contexts JSON: ${(error as Error).message}`);
+      getDefaultLogger().warn(`Persistence: Failed to parse contexts JSON: ${(error as Error).message}`);
       return [];
     }
   }

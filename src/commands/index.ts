@@ -26,6 +26,7 @@ export { OnboardCommand } from './onboard.js';
 export { TaskCommand } from './task.js';
 export { ProjectCommand } from './project.js';
 export { StartCommand, StatusCommand, ResetCommand, TestCommand, TemplateCommand } from './simple.js';
+export { SkillCommand } from './skill.js';
 
 // Initialize registry with all commands
 import { registry } from './framework.js';
@@ -36,6 +37,7 @@ import { OnboardCommand } from './onboard.js';
 import { TaskCommand } from './task.js';
 import { ProjectCommand } from './project.js';
 import { StartCommand, StatusCommand, ResetCommand, TestCommand, TemplateCommand } from './simple.js';
+import { SkillCommand } from './skill.js';
 
 // Register all commands
 registry.register(new HelpCommand());
@@ -49,5 +51,6 @@ registry.register(new ScheduleCommand());
 registry.register(new OnboardCommand());
 registry.register(new TaskCommand());
 registry.register(new ProjectCommand());
+registry.register(new SkillCommand());
 
 export { registry as commandRegistry };

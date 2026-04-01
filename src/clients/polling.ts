@@ -29,12 +29,15 @@ import {
   getAcpManager,
   getTaskRouter,
   getAgent,
+  getAgentManager,
+  setLongTaskWechatCallbacks,
 } from '../init/managers.js';
 import { RESET_COMMANDS, SESSION_PAUSE_MS, SESSION_EXPIRED_ERRCODE, recordMessageReceived } from '../init/state.js';
 import { extractText } from '../message-handlers/extract.js';
+import { createAgentLogger, getDefaultLogger, createLogger } from '../logging/index.js';
 import { executeDirect, executeLongTask, executeFlowTask, handleFlowTaskConfirmation } from '../message-handlers/execute.js';
-
 import { ExecutionMode, createTaskSubmission, TaskPriority } from '../task-router/index.js';
+import { DebugInterface } from '../debug/interface.js';
 
 export interface AgentClient {
   agentId: string;
@@ -43,6 +46,11 @@ export interface AgentClient {
 }
 
 const agentClients = new Map<string, AgentClient>();
+const logger = createLogger({ module: 'polling' });
+
+export function getAgentClient(agentId: string): AgentClient | undefined {
+  return agentClients.get(agentId);
+}
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -79,24 +87,40 @@ export function initAgentClients(): AgentClient[] {
 }
 
 export async function main(): Promise<void> {
+  const logger = getDefaultLogger();
   const clients = initAgentClients();
   
   if (clients.length === 0) {
-    console.error('未找到登录凭证。请先运行: npm run login');
+    logger.error('未找到登录凭证。请先运行: npm run login');
     process.exit(1);
   }
 
   const config = loadConfig();
   const store = new FileStore(getBaseDir());
   
-  initAgentManager();
-  initACPManager();
+  await initAgentManager();
+  await initACPManager();
   initTaskRouter();
   await initLongTaskManager(store);
   await initFlowTaskManager(store);
   initSchedulerManager();
   initCommandHandler();
   initNotificationService();
+
+  // 启动 Debug Interface（如果启用）
+  if (process.env.DEBUG_ENABLED === 'true') {
+    const debugPort = parseInt(process.env.DEBUG_PORT || '3456', 10);
+    const debugInterface = new DebugInterface(
+      getAgentManager()!,
+      debugPort
+    );
+    debugInterface.start();
+  }
+
+  // 设置 LongTask 微信消息推送回调
+  setLongTaskWechatCallbacks((agentId: string) => {
+    return agentClients.get(agentId);
+  });
 
   // Register WeChat notification channels for each agent
   for (const ac of clients) {
@@ -111,19 +135,19 @@ export async function main(): Promise<void> {
     });
   }
 
-  console.log('=== 微信 Kimi Bot (智能任务路由 v2) 已启动 ===');
-  console.log(`已加载 ${clients.length} 个 Agent:`);
+  logger.info('=== 微信 Kimi Bot (智能任务路由 v2) 已启动 ===');
+  logger.info(`已加载 ${clients.length} 个 Agent:`);
   for (const ac of clients) {
-    console.log(`  - ${ac.agentId}: ${ac.credentials.accountId}`);
+    logger.info(`  - ${ac.agentId}: ${ac.credentials.accountId}`);
   }
-  console.log(`模型: ${config.model}`);
-  console.log(`工作目录: ${config.cwd}`);
-  console.log(`多轮对话: ${config.multiTurn ? '开启' : '关闭'}`);
-  console.log('执行模式: DIRECT | LONGTASK | FLOWTASK');
-  console.log('等待消息中...\n');
+  logger.info(`模型: ${config.model}`);
+  logger.info(`工作目录: ${config.cwd}`);
+  logger.info(`多轮对话: ${config.multiTurn ? '开启' : '关闭'}`);
+  logger.info('执行模式: DIRECT | LONGTASK | FLOWTASK');
+  logger.info('等待消息中...\n');
 
   process.on('SIGINT', async () => {
-    console.log('\n\n正在关闭...');
+    logger.info('\n\n正在关闭...');
     const acp = getAcpManager();
     if (acp) {
       await acp.closeAll();
@@ -141,6 +165,7 @@ export async function pollAgentClient(
 ): Promise<void> {
   let consecutiveFailures = 0;
   const { agentId, client } = agentClient;
+  const logger = createAgentLogger(agentId);
 
   while (true) {
     try {
@@ -154,18 +179,18 @@ export async function pollAgentClient(
           resp.errcode === SESSION_EXPIRED_ERRCODE ||
           resp.ret === SESSION_EXPIRED_ERRCODE
         ) {
-          console.error(`[${agentId}] ⚠️  Session 过期，暂停 1 小时后重试...`);
-          console.error(`[${agentId}]    提示：可能需要重新登录 (npm run login)`);
+          logger.error(`⚠️  Session 过期，暂停 1 小时后重试...`);
+          logger.error(`提示：可能需要重新登录 (npm run login)`);
           await sleep(SESSION_PAUSE_MS);
           continue;
         }
 
         consecutiveFailures++;
-        console.error(
-          `[${agentId}] getUpdates 错误: ret=${resp.ret} errcode=${resp.errcode} (${consecutiveFailures}/3)`
+        logger.error(
+          `getUpdates 错误: ret=${resp.ret} errcode=${resp.errcode} (${consecutiveFailures}/3)`
         );
         if (consecutiveFailures >= 3) {
-          console.error(`[${agentId}] 连续失败 3 次，等待 30 秒...`);
+          logger.error(`连续失败 3 次，等待 30 秒...`);
           consecutiveFailures = 0;
           await sleep(30_000);
         } else {
@@ -183,8 +208,8 @@ export async function pollAgentClient(
       }
     } catch (err) {
       consecutiveFailures++;
-      console.error(
-        `[${agentId}] Poll 异常 (${consecutiveFailures}/3):`,
+      logger.error(
+        `Poll 异常 (${consecutiveFailures}/3):`,
         err instanceof Error ? err.message : err
       );
       if (consecutiveFailures >= 3) {
@@ -215,7 +240,7 @@ async function handleMessage(
   const userId: string = fromUser;
   const text: string = extractedText;
 
-  console.log(`[${agentId}] 收到消息: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+  logger.info(`收到消息: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
   recordMessageReceived();
 
   const contextToken = getContextToken(agentId) ?? '';

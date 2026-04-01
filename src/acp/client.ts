@@ -14,6 +14,7 @@ import type {
   ACPResponse,
   ACPConnectionStatus,
 } from './types.js';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * ACP Client implementation
@@ -46,7 +47,7 @@ export class ACPClient {
 
     try {
       // Spawn ACP process
-      console.log(`[ACP] Spawning: ${this.config.command} ${this.config.args.join(' ')}`);
+      getDefaultLogger().debug(`[ACP] Spawning: ${this.config.command} ${this.config.args.join(' ')}`);
       this.process = spawn(this.config.command, this.config.args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...this.config.env },
@@ -55,13 +56,13 @@ export class ACPClient {
 
       // Capture stderr for debugging
       this.process.stderr?.on('data', (data) => {
-        console.error(`[ACP Server stderr]: ${data.toString()}`);
+        getDefaultLogger().debug(`[ACP Server stderr]: ${data.toString()}`);
       });
 
       // Handle process exit
       this.process.on('exit', (code) => {
         if (code !== 0) {
-          console.error(`[ACP] Process exited with code ${code}`);
+          getDefaultLogger().error(`[ACP] Process exited with code ${code}`);
         }
       });
 
@@ -93,7 +94,7 @@ export class ACPClient {
     } catch (error) {
       this.status = 'error';
       const errorDetails = error instanceof Error ? error.message : JSON.stringify(error);
-      console.error('[ACP] Connection error details:', error);
+      getDefaultLogger().error('[ACP] Connection error details:', error);
       throw new Error(
         `Failed to connect to ACP server: ${errorDetails}`
       );
@@ -139,6 +140,21 @@ export class ACPClient {
         ],
       });
 
+      // 检查 response 是否包含错误
+      const responseAny = response as unknown as Record<string, unknown>;
+      if (responseAny.error) {
+        getDefaultLogger().error('[ACP] Response contains error:', JSON.stringify(responseAny, null, 2));
+        return {
+          text: this.responseBuffer,
+          toolCalls: this.toolCalls,
+          sessionId,
+          stopReason: 'error',
+          error: typeof responseAny.error === 'string' 
+            ? responseAny.error 
+            : JSON.stringify(responseAny.error),
+        };
+      }
+
       return {
         text: this.responseBuffer,
         toolCalls: this.toolCalls,
@@ -146,12 +162,16 @@ export class ACPClient {
         stopReason: response.stopReason as ACPResponse['stopReason'],
       };
     } catch (error) {
+      const errorStr = typeof error === 'object' 
+        ? JSON.stringify(error, null, 2)
+        : String(error);
+      getDefaultLogger().error('[ACP] Prompt error:', errorStr);
       return {
         text: this.responseBuffer,
         toolCalls: this.toolCalls,
         sessionId,
         stopReason: 'error',
-        error: error instanceof Error ? error.message : String(error),
+        error: errorStr,
       };
     }
   }
@@ -221,7 +241,7 @@ export class ACPClient {
       ): Promise<acp.RequestPermissionResponse> => {
         // For safety, reject all permission requests in bot mode
         // In the future, we could forward this to the user via WeChat
-        console.log(`[ACP] Permission requested: ${params.toolCall.title}`);
+        getDefaultLogger().debug(`[ACP] Permission requested: ${params.toolCall.title}`);
         
         return {
           outcome: {

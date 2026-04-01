@@ -30,6 +30,7 @@ import { getTemplateById, listTemplates } from './templates/definitions.js';
 import { TemplateType } from './agent/types.js';
 import { createWorkspaceManager } from './workspace/index.js';
 import { loadMasterConfig } from './config/master-config.js';
+import { getDefaultLogger } from './logging/index.js';
 
 // 创建 readline 接口
 function createRL(): readline.Interface {
@@ -259,7 +260,7 @@ async function main() {
     
   } catch (err) {
     rl.close();
-    console.error('\n❌ 登录失败:', err instanceof Error ? err.message : String(err));
+    getDefaultLogger().error('❌ 登录失败:', err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }

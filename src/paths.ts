@@ -16,7 +16,10 @@
  * ├── wechat-accounts/{prefix}/       # 微信账号 (N)
  * │   ├── credentials.json
  * │   └── bindings.json
- * └── backups/{timestamp}/            # 备份
+ * ├── backups/{timestamp}/            # 备份
+ * └── logs/                           # 日志文件
+ *     ├── app-YYYY-MM-DD.log          # 应用日志（按日期滚动）
+ *     └── app-YYYY-MM-DD.error.log    # 错误日志
  */
 
 import { join } from 'path';
@@ -88,6 +91,11 @@ export const Paths = {
   /** 备份目录 */
   get backupsDir(): string {
     return join(currentBaseDir, 'backups');
+  },
+
+  /** 日志目录 */
+  get logsDir(): string {
+    return join(currentBaseDir, 'logs');
   },
 
   // ===== 系统文件 =====
