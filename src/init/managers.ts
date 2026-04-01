@@ -46,11 +46,13 @@ export function initAgentManager(): AgentManager {
 export function initACPManager(): ACPManager {
   if (acpManager) return acpManager;
 
+  // Note: cwd is no longer set here - it's passed per-session in prompt() calls
+  // Each Agent uses their own workspace.path as cwd for isolation
   acpManager = new ACPManager({
     acpConfig: {
       command: 'kimi',
       args: ['acp'],
-      cwd: process.cwd(),
+      // cwd will be set per-session based on Agent workspace
     },
     sessionTimeout: 30 * 60 * 1000, // 30 minutes
     cleanupInterval: 5 * 60 * 1000, // 5 minutes

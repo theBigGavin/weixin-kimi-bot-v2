@@ -37,6 +37,8 @@ export interface LongTask {
   createdAt: number;
   startedAt?: number;
   completedAt?: number;
+  /** Agent workspace path for isolation */
+  workspacePath: string;
 }
 
 // ============================================

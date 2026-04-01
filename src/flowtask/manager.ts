@@ -62,9 +62,10 @@ export class FlowTaskManager {
    * 创建流程任务
    * @param submission 任务提交
    * @param plan 执行计划
+   * @param workspacePath Agent workspace path for isolation
    * @returns 创建的任务
    */
-  create(submission: TaskSubmission, plan: FlowStep[]): FlowTask {
+  create(submission: TaskSubmission, plan: FlowStep[], workspacePath: string): FlowTask {
     const task: FlowTask = {
       id: createFlowTaskId(),
       submissionId: submission.id,
@@ -73,6 +74,7 @@ export class FlowTaskManager {
       currentStep: 0,
       results: [],
       createdAt: Date.now(),
+      workspacePath,
     };
     this.tasks.set(task.id, task);
     this.saveTask(task);
@@ -199,7 +201,7 @@ export class FlowTaskManager {
 
     // 直接执行步骤
     try {
-      const result = await this.executeStepWithACP(step, userId);
+      const result = await this.executeStepWithACP(step, userId, task.workspacePath);
       
       const stepResult: FlowStepResult = {
         stepId: step.id,
@@ -251,10 +253,14 @@ export class FlowTaskManager {
   /**
    * 通过 ACP 执行步骤
    */
-  private async executeStepWithACP(step: FlowStep, userId: string): Promise<string> {
+  private async executeStepWithACP(
+    step: FlowStep, 
+    userId: string, 
+    workspacePath: string
+  ): Promise<string> {
     const prompt = `执行以下任务步骤：\n\n${step.description}\n\n请详细说明执行过程和结果。`;
     
-    const response = await this.acpManager.prompt(userId, { text: prompt });
+    const response = await this.acpManager.prompt(userId, { text: prompt }, workspacePath);
     
     if (response.error) {
       throw new Error(response.error);
@@ -280,7 +286,7 @@ export class FlowTaskManager {
       task.status = FlowTaskStatus.RUNNING;
       await this.saveTask(task);
 
-      const result = await this.executeStepWithACP(step, userId);
+      const result = await this.executeStepWithACP(step, userId, task.workspacePath);
       
       const stepResult: FlowStepResult = {
         stepId: step.id,

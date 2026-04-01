@@ -2,6 +2,7 @@
  * ACP Service Manager
  * 
  * Manages ACP connections for multiple users
+ * Each user session is isolated to their own workspace
  */
 
 import { ACPClient } from './client.js';
@@ -15,6 +16,7 @@ interface UserSession {
   client: ACPClient;
   sessionId: string;
   lastActivity: number;
+  workspacePath: string;
 }
 
 /**
@@ -31,6 +33,8 @@ export interface ACPManagerOptions {
 
 /**
  * ACP Service Manager
+ * 
+ * Manages isolated ACP sessions per user, each bound to their workspace
  */
 export class ACPManager {
   private sessions = new Map<string, UserSession>();
@@ -52,21 +56,34 @@ export class ACPManager {
 
   /**
    * Get or create session for user
+   * @param userId User identifier
+   * @param workspacePath Agent's workspace path (must be provided)
    */
-  private async getOrCreateSession(userId: string): Promise<UserSession> {
+  private async getOrCreateSession(
+    userId: string,
+    workspacePath: string
+  ): Promise<UserSession> {
     const existing = this.sessions.get(userId);
+    
+    // Check if existing session is valid and uses the same workspace
     if (existing) {
-      existing.lastActivity = Date.now();
-      return existing;
+      if (existing.workspacePath === workspacePath) {
+        existing.lastActivity = Date.now();
+        return existing;
+      }
+      
+      // Workspace changed, close existing session
+      console.log(`[ACP] Workspace changed for user ${userId}, recreating session`);
+      await this.closeUserSession(userId);
     }
 
     // Create new client
     const client = new ACPClient(this.options.acpConfig);
     await client.connect();
 
-    // Create session
+    // Create session with user's workspace as cwd
     const sessionId = await client.createSession({
-      cwd: process.cwd(),
+      cwd: workspacePath,
     });
 
     const session: UserSession = {
@@ -74,20 +91,33 @@ export class ACPManager {
       client,
       sessionId,
       lastActivity: Date.now(),
+      workspacePath,
     };
 
     this.sessions.set(userId, session);
     console.log(`[ACP] Created new session for user ${userId}: ${sessionId}`);
+    console.log(`[ACP] Workspace: ${workspacePath}`);
 
     return session;
   }
 
   /**
    * Send prompt to ACP for user
+   * @param userId User identifier
+   * @param prompt The prompt to send
+   * @param workspacePath Agent's workspace path (required for isolation)
    */
-  async prompt(userId: string, prompt: ACPPrompt): Promise<ACPResponse> {
+  async prompt(
+    userId: string,
+    prompt: ACPPrompt,
+    workspacePath: string
+  ): Promise<ACPResponse> {
+    if (!workspacePath) {
+      throw new Error('workspacePath is required for session isolation');
+    }
+
     try {
-      const session = await this.getOrCreateSession(userId);
+      const session = await this.getOrCreateSession(userId, workspacePath);
       const response = await session.client.prompt(session.sessionId, prompt);
       
       session.lastActivity = Date.now();
@@ -148,6 +178,18 @@ export class ACPManager {
    */
   getActiveUsers(): string[] {
     return Array.from(this.sessions.keys());
+  }
+
+  /**
+   * Get session info (for debugging)
+   */
+  getSessionInfo(userId: string): { sessionId: string; workspacePath: string } | null {
+    const session = this.sessions.get(userId);
+    if (!session) return null;
+    return {
+      sessionId: session.sessionId,
+      workspacePath: session.workspacePath,
+    };
   }
 
   /**

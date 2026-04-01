@@ -49,6 +49,8 @@ export interface FlowTask {
   createdAt: number;
   startedAt?: number;
   completedAt?: number;
+  /** Agent workspace path for isolation */
+  workspacePath: string;
 }
 
 // ============================================
@@ -79,7 +81,11 @@ export function createFlowStep(
 // ============================================
 // 创建流程任务
 // ============================================
-export function createFlowTask(submissionId: string, plan: FlowStep[]): FlowTask {
+export function createFlowTask(
+  submissionId: string, 
+  plan: FlowStep[],
+  workspacePath: string
+): FlowTask {
   const now = Date.now();
   return {
     id: createFlowTaskId(),
@@ -89,5 +95,6 @@ export function createFlowTask(submissionId: string, plan: FlowStep[]): FlowTask
     currentStep: 0,
     results: [],
     createdAt: now,
+    workspacePath,
   };
 }

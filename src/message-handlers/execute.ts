@@ -42,7 +42,9 @@ export async function executeDirect(
   
   try {
     const manager = initACPManager();
-    const response = await manager.prompt(fromUser, { text });
+    const agent = await getAgent(agentId, fromUser);
+    const workspacePath = agent.config.workspace.path;
+    const response = await manager.prompt(fromUser, { text }, workspacePath);
 
     const duration = Date.now() - start;
     console.log(`[${agentId}] ✅ Kimi 响应完成 (${(duration / 1000).toFixed(1)}s)`);
@@ -117,7 +119,8 @@ export async function extractAndSaveMemory(
     
     try {
       const acp = initACPManager();
-      const extractionResult = await acp.prompt(userId, { text: extractionPrompt });
+      const workspacePath = agent.config.workspace.path;
+      const extractionResult = await acp.prompt(userId, { text: extractionPrompt }, workspacePath);
       
       if (extractionResult.error) {
         console.error('[Memory] Extraction failed:', extractionResult.error);
@@ -161,6 +164,8 @@ export async function executeLongTask(
   console.log(`[${agentId}] ⏳ LONGTASK mode execution`);
   
   const ltManager = getLongTaskManager()!;
+  const agent = await getAgent(agentId, fromUser);
+  const workspacePath = agent.config.workspace.path;
   
   const submission = createTaskSubmission({
     prompt: text,
@@ -170,7 +175,7 @@ export async function executeLongTask(
     priority: TaskPriority.NORMAL,
   });
   
-  const task = ltManager.submit(submission);
+  const task = ltManager.submit(submission, workspacePath);
   
   const ackMessage = 
     `📋 任务已提交（长任务模式）\n` +
@@ -202,6 +207,8 @@ export async function executeFlowTask(
   console.log(`[${agentId}] 🔄 FLOWTASK mode execution`);
   
   const ftManager = getFlowTaskManager()!;
+  const agent = await getAgent(agentId, fromUser);
+  const workspacePath = agent.config.workspace.path;
   
   const submission = createTaskSubmission({
     prompt: text,
@@ -212,7 +219,7 @@ export async function executeFlowTask(
   });
   
   const plan = ftManager.createPlan(text);
-  const task = ftManager.create(submission, plan);
+  const task = ftManager.create(submission, plan, workspacePath);
   
   let planMessage = `📋 流程任务已创建\n任务ID: ${task.id}\n\n执行计划:\n`;
   plan.forEach((step, index) => {

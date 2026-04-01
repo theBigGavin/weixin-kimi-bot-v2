@@ -71,9 +71,10 @@ export class LongTaskManager {
   /**
    * 提交任务
    * @param submission 任务提交
+   * @param workspacePath Agent workspace path for isolation
    * @returns 创建的任务
    */
-  submit(submission: TaskSubmission): LongTask {
+  submit(submission: TaskSubmission, workspacePath: string): LongTask {
     const task: LongTask = {
       id: createLongTaskId(),
       submissionId: submission.id,
@@ -82,6 +83,7 @@ export class LongTaskManager {
       progress: 0,
       progressLogs: [],
       createdAt: Date.now(),
+      workspacePath,
     };
     this.tasks.set(task.id, task);
     this.saveTask(task);
@@ -130,10 +132,10 @@ export class LongTaskManager {
       // 发送初始进度
       await this.updateProgress(task.id, 10, '任务开始执行，正在分析需求...');
 
-      // 通过 ACP 调用 Kimi
+      // 通过 ACP 调用 Kimi (使用 task 的 workspace 路径)
       const response = await this.acpManager.prompt(userId, {
         text: task.prompt,
-      });
+      }, task.workspacePath);
 
       if (response.error) {
         throw new Error(response.error);
