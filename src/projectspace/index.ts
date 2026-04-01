@@ -64,7 +64,7 @@ export {
   type CreateFromTemplateResult,
   type VariableValidationResult,
   createProjectTemplateEngine,
-} from './templates.js';
+} from './templates/index.js';
 
 // 项目分享/导入
 export {

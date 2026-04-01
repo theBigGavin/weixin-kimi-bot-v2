@@ -13,7 +13,7 @@ import {
   TemplateVariable,
   TemplateType,
   TemplateRegistry,
-} from '../../../src/projectspace/templates.js';
+} from '../../../src/projectspace/templates/index.js';
 
 describe('project-templates', () => {
   let testDir: string;
