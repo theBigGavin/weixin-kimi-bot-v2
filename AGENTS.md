@@ -502,7 +502,7 @@ npm run ask "/help"
 - **HTTP 接口**: 支持编程调用
 
 ### 文档
-- `DEBUG_INTERFACE.md` - 完整使用指南
+- `docs/DEBUG_INTERFACE.md` - 完整使用指南
 
 ## 文档索引
 
