@@ -1,7 +1,7 @@
 /**
- * Scheduler Manager
+ * Scheduler Manager - Functional Programming Version
  * 
- * Manages scheduled tasks with support for one-time, interval, and cron schedules.
+ * Phase 1 Refactoring: Remove singleton, use factory function
  */
 
 export enum ScheduleType {
@@ -48,144 +48,120 @@ interface TaskTimer {
   type: 'interval' | 'timeout';
 }
 
-export class SchedulerManager {
-  private static instance: SchedulerManager | null = null;
-  private tasks = new Map<string, ScheduledTask>();
-  private handlers = new Map<string, TaskHandler>();
-  private timers = new Map<string, TaskTimer>();
-  private running = false;
+// ============================================================================
+// Factory Function
+// ============================================================================
 
-  /**
-   * Get the singleton instance
-   */
-  static getInstance(): SchedulerManager {
-    if (!SchedulerManager.instance) {
-      SchedulerManager.instance = new SchedulerManager();
-    }
-    return SchedulerManager.instance;
+export interface SchedulerManager {
+  registerHandler(name: string, handler: TaskHandler): void;
+  schedule(task: Omit<ScheduledTask, 'id' | 'status' | 'createdAt' | 'nextRunAt' | 'runCount'>): ScheduledTask;
+  cancel(taskId: string): boolean;
+  getTask(taskId: string): ScheduledTask | undefined;
+  list(status?: TaskStatus): ScheduledTask[];
+  start(): void;
+  stopAll(): void;
+  isRunning(): boolean;
+}
+
+export function createSchedulerManager(): SchedulerManager {
+  const tasks = new Map<string, ScheduledTask>();
+  const handlers = new Map<string, TaskHandler>();
+  const timers = new Map<string, TaskTimer>();
+  let running = false;
+
+  function registerHandler(name: string, handler: TaskHandler): void {
+    handlers.set(name, handler);
   }
 
-  /**
-   * Register a task handler
-   */
-  registerHandler(name: string, handler: TaskHandler): void {
-    this.handlers.set(name, handler);
-  }
-
-  /**
-   * Schedule a new task
-   */
-  schedule(
+  function schedule(
     task: Omit<ScheduledTask, 'id' | 'status' | 'createdAt' | 'nextRunAt' | 'runCount'>
   ): ScheduledTask {
-    // Validate handler exists
-    if (!this.handlers.has(task.handler)) {
+    if (!handlers.has(task.handler)) {
       throw new Error(`Handler ${task.handler} not registered`);
     }
 
     const scheduled: ScheduledTask = {
       ...task,
-      id: this.generateId(),
+      id: generateId(),
       status: TaskStatus.PENDING,
       createdAt: Date.now(),
-      nextRunAt: this.calculateNextRun(task.type, task.schedule),
+      nextRunAt: calculateNextRun(task.type, task.schedule),
       runCount: 0,
     };
 
-    this.tasks.set(scheduled.id, scheduled);
+    tasks.set(scheduled.id, scheduled);
 
-    // If scheduler is running, schedule the task immediately
-    if (this.running) {
-      this.setupTimer(scheduled);
+    if (running) {
+      setupTimer(scheduled);
     }
 
     return scheduled;
   }
 
-  /**
-   * Cancel a scheduled task
-   */
-  cancel(taskId: string): boolean {
-    const task = this.tasks.get(taskId);
+  function cancel(taskId: string): boolean {
+    const task = tasks.get(taskId);
     if (!task) return false;
 
-    // Clear timer
-    const timer = this.timers.get(taskId);
+    const timer = timers.get(taskId);
     if (timer) {
       if (timer.type === 'interval') {
-        clearInterval(timer.timerId);
+        clearInterval(timer.timerId as ReturnType<typeof setInterval>);
       } else {
-        clearTimeout(timer.timerId);
+        clearTimeout(timer.timerId as ReturnType<typeof setTimeout>);
       }
-      this.timers.delete(taskId);
+      timers.delete(taskId);
     }
 
     task.status = TaskStatus.CANCELLED;
     return true;
   }
 
-  /**
-   * Get a task by ID
-   */
-  getTask(taskId: string): ScheduledTask | undefined {
-    return this.tasks.get(taskId);
+  function getTask(taskId: string): ScheduledTask | undefined {
+    return tasks.get(taskId);
   }
 
-  /**
-   * List all tasks or filter by status
-   */
-  list(status?: TaskStatus): ScheduledTask[] {
-    const tasks = Array.from(this.tasks.values());
+  function list(status?: TaskStatus): ScheduledTask[] {
+    const allTasks = Array.from(tasks.values());
     if (status) {
-      return tasks.filter(t => t.status === status);
+      return allTasks.filter(t => t.status === status);
     }
-    return tasks;
+    return allTasks;
   }
 
-  /**
-   * Start the scheduler
-   */
-  start(): void {
-    if (this.running) return;
-    this.running = true;
+  function start(): void {
+    if (running) return;
+    running = true;
 
-    // Setup timers for all pending tasks
-    for (const task of this.tasks.values()) {
+    for (const task of tasks.values()) {
       if (task.status === TaskStatus.PENDING) {
-        this.setupTimer(task);
+        setupTimer(task);
       }
     }
   }
 
-  /**
-   * Stop all tasks
-   */
-  stopAll(): void {
-    this.running = false;
+  function stopAll(): void {
+    running = false;
 
-    // Clear all timers
-    for (const timer of this.timers.values()) {
+    for (const timer of timers.values()) {
       if (timer.type === 'interval') {
-        clearInterval(timer.timerId);
+        clearInterval(timer.timerId as ReturnType<typeof setInterval>);
       } else {
-        clearTimeout(timer.timerId);
+        clearTimeout(timer.timerId as ReturnType<typeof setTimeout>);
       }
     }
-    this.timers.clear();
+    timers.clear();
   }
 
-  /**
-   * Check if scheduler is running
-   */
-  isRunning(): boolean {
-    return this.running;
+  function isRunning(): boolean {
+    return running;
   }
 
-  private generateId(): string {
+  // Private helpers (closures)
+  function generateId(): string {
     return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  private calculateNextRun(type: ScheduleType, schedule: ScheduleConfig): number {
+  function calculateNextRun(type: ScheduleType, schedule: ScheduleConfig): number {
     const now = Date.now();
 
     switch (type) {
@@ -194,14 +170,13 @@ export class SchedulerManager {
       case ScheduleType.INTERVAL:
         return now + (schedule.interval || 0);
       case ScheduleType.CRON:
-        // Simple implementation: parse basic cron (only supports "M H * * *" format)
-        return this.parseCronNextRun(schedule.cron || '');
+        return parseCronNextRun(schedule.cron || '');
       default:
         return now;
     }
   }
 
-  private parseCronNextRun(cron: string): number {
+  function parseCronNextRun(cron: string): number {
     const now = new Date();
     const parts = cron.split(' ');
     
@@ -221,43 +196,40 @@ export class SchedulerManager {
       }
     }
     
-    return now.getTime() + 60000; // Default to 1 minute
+    return now.getTime() + 60000;
   }
 
-  private setupTimer(task: ScheduledTask): void {
+  function setupTimer(task: ScheduledTask): void {
     const delay = Math.max(0, (task.nextRunAt || Date.now()) - Date.now());
 
     if (task.type === ScheduleType.INTERVAL) {
-      // For interval tasks, run immediately after delay, then repeat
       const timerId = setInterval(() => {
-        this.executeTask(task.id);
+        executeTask(task.id);
       }, task.schedule.interval || 60000);
 
-      this.timers.set(task.id, { taskId: task.id, timerId, type: 'interval' });
+      timers.set(task.id, { taskId: task.id, timerId, type: 'interval' });
 
-      // Initial delay
       if (delay > 0) {
         setTimeout(() => {
           if (task.status === TaskStatus.PENDING) {
-            this.executeTask(task.id);
+            executeTask(task.id);
           }
         }, delay);
       }
     } else {
-      // One-time or cron task
       const timerId = setTimeout(() => {
-        this.executeTask(task.id);
+        executeTask(task.id);
       }, delay);
 
-      this.timers.set(task.id, { taskId: task.id, timerId, type: 'timeout' });
+      timers.set(task.id, { taskId: task.id, timerId, type: 'timeout' });
     }
   }
 
-  private async executeTask(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
+  async function executeTask(taskId: string): Promise<void> {
+    const task = tasks.get(taskId);
     if (!task || task.status === TaskStatus.CANCELLED) return;
 
-    const handler = this.handlers.get(task.handler);
+    const handler = handlers.get(task.handler);
     if (!handler) {
       task.status = TaskStatus.FAILED;
       task.error = `Handler ${task.handler} not found`;
@@ -274,7 +246,6 @@ export class SchedulerManager {
       if (task.type === ScheduleType.ONCE || task.type === ScheduleType.CRON) {
         task.status = TaskStatus.COMPLETED;
       } else {
-        // Interval tasks go back to pending
         task.status = TaskStatus.PENDING;
         task.nextRunAt = Date.now() + (task.schedule.interval || 60000);
       }
@@ -284,15 +255,13 @@ export class SchedulerManager {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if ((task.maxRetries || 0) > 0 && task.runCount <= (task.maxRetries || 0)) {
-        // Retry
         task.status = TaskStatus.PENDING;
         task.error = `Retry ${task.runCount}/${task.maxRetries}: ${errorMessage}`;
-        task.nextRunAt = Date.now() + 1000; // Retry after 1 second
+        task.nextRunAt = Date.now() + 1000;
         
-        // Setup retry timer
         setTimeout(() => {
-          if (this.running) {
-            this.executeTask(taskId);
+          if (running) {
+            executeTask(taskId);
           }
         }, 1000);
       } else {
@@ -300,5 +269,76 @@ export class SchedulerManager {
         task.error = errorMessage;
       }
     }
+  }
+
+  return {
+    registerHandler,
+    schedule,
+    cancel,
+    getTask,
+    list,
+    start,
+    stopAll,
+    isRunning,
+  } as unknown as SchedulerManager;
+}
+
+// ============================================================================
+// Backward Compatibility - Singleton Class Wrapper
+// ============================================================================
+
+/**
+ * @deprecated Use createSchedulerManager() for new code
+ */
+export class SchedulerManager {
+  private static instance: SchedulerManager | null = null;
+  private manager: ReturnType<typeof createSchedulerManager>;
+
+  private constructor() {
+    this.manager = createSchedulerManager();
+  }
+
+  /**
+   * @deprecated Use createSchedulerManager() to create instances
+   */
+  static getInstance(): SchedulerManager {
+    if (!SchedulerManager.instance) {
+      SchedulerManager.instance = new SchedulerManager();
+    }
+    return SchedulerManager.instance;
+  }
+
+  registerHandler(name: string, handler: TaskHandler): void {
+    return this.manager.registerHandler(name, handler);
+  }
+
+  schedule(
+    task: Omit<ScheduledTask, 'id' | 'status' | 'createdAt' | 'nextRunAt' | 'runCount'>
+  ): ScheduledTask {
+    return this.manager.schedule(task);
+  }
+
+  cancel(taskId: string): boolean {
+    return this.manager.cancel(taskId);
+  }
+
+  getTask(taskId: string): ScheduledTask | undefined {
+    return this.manager.getTask(taskId);
+  }
+
+  list(status?: TaskStatus): ScheduledTask[] {
+    return Array.from(this.manager.list(status));
+  }
+
+  start(): void {
+    return this.manager.start();
+  }
+
+  stopAll(): void {
+    return this.manager.stopAll();
+  }
+
+  isRunning(): boolean {
+    return this.manager.isRunning();
   }
 }
