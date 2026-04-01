@@ -24,6 +24,7 @@ export { MemoryCommand } from './memory.js';
 export { ScheduleCommand } from './schedule.js';
 export { OnboardCommand } from './onboard.js';
 export { TaskCommand } from './task.js';
+export { ProjectCommand } from './project.js';
 export { StartCommand, StatusCommand, ResetCommand, TestCommand, TemplateCommand } from './simple.js';
 
 // Initialize registry with all commands
@@ -33,6 +34,7 @@ import { MemoryCommand } from './memory.js';
 import { ScheduleCommand } from './schedule.js';
 import { OnboardCommand } from './onboard.js';
 import { TaskCommand } from './task.js';
+import { ProjectCommand } from './project.js';
 import { StartCommand, StatusCommand, ResetCommand, TestCommand, TemplateCommand } from './simple.js';
 
 // Register all commands
@@ -46,5 +48,6 @@ registry.register(new MemoryCommand());
 registry.register(new ScheduleCommand());
 registry.register(new OnboardCommand());
 registry.register(new TaskCommand());
+registry.register(new ProjectCommand());
 
 export { registry as commandRegistry };

@@ -16,6 +16,27 @@ import {
 import { dialogueCache } from '../init/state.js';
 import { waitingFlowTasks, CONFIRM_KEYWORDS, CANCEL_KEYWORDS, SKIP_KEYWORDS } from '../init/state.js';
 import { createTaskSubmission, TaskPriority } from '../task-router/index.js';
+import { ProjectManager } from '../projectspace/manager.js';
+
+/**
+ * 获取当前工作目录（考虑项目切换）
+ */
+async function getWorkingDirectory(agentId: string, baseWorkspacePath: string): Promise<string> {
+  // 尝试加载项目配置
+  const projectManager = new ProjectManager({
+    agentId,
+    agentWorkspacePath: baseWorkspacePath,
+    defaultProjectsPath: `${process.env.HOME || '/tmp'}/projects`,
+    configPath: `${baseWorkspacePath}/projects.json`,
+  });
+
+  const activeProject = projectManager.getActiveProject();
+  if (activeProject) {
+    return activeProject.workspacePath;
+  }
+
+  return baseWorkspacePath;
+}
 
 export async function executeDirect(
   client: ILinkClient,
@@ -43,7 +64,7 @@ export async function executeDirect(
   try {
     const manager = initACPManager();
     const agent = await getAgent(agentId, fromUser);
-    const workspacePath = agent.config.workspace.path;
+    const workspacePath = await getWorkingDirectory(agentId, agent.config.workspace.path);
     const response = await manager.prompt(fromUser, { text }, workspacePath);
 
     const duration = Date.now() - start;
@@ -119,7 +140,7 @@ export async function extractAndSaveMemory(
     
     try {
       const acp = initACPManager();
-      const workspacePath = agent.config.workspace.path;
+      const workspacePath = await getWorkingDirectory(agentId, agent.config.workspace.path);
       const extractionResult = await acp.prompt(userId, { text: extractionPrompt }, workspacePath);
       
       if (extractionResult.error) {
@@ -165,7 +186,7 @@ export async function executeLongTask(
   
   const ltManager = getLongTaskManager()!;
   const agent = await getAgent(agentId, fromUser);
-  const workspacePath = agent.config.workspace.path;
+  const workspacePath = await getWorkingDirectory(agentId, agent.config.workspace.path);
   
   const submission = createTaskSubmission({
     prompt: text,
