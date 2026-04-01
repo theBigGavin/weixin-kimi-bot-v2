@@ -24,7 +24,7 @@ export {
   
   // TaskRequest
   type TaskRequest,
-  type TaskAnalysis,
+  type ProtocolTaskAnalysis,
   type ComplexityAssessment,
   type ExecutionPlan,
   type ExecutionStep,

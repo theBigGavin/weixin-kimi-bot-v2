@@ -7,7 +7,6 @@
 
 import {
   Capability,
-  CapabilityConstraints,
   CreateCapabilityParams,
   createCapability,
 } from './types.js';

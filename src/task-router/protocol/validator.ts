@@ -11,9 +11,9 @@ import {
   ValidationError,
   ValidationWarning,
   ExecutionStep,
-  ExecutionMode,
   CAPABILITY_PROTOCOL_VERSION,
 } from './types.js';
+import { ExecutionMode } from '../types.js';
 import { CapabilityRegistry } from './capability-registry.js';
 
 /**
@@ -399,7 +399,11 @@ export class ProtocolValidator {
     }
 
     // 验证执行模式
-    const validModes: ExecutionMode[] = ['direct', 'longtask', 'flowtask'];
+    const validModes: ExecutionMode[] = [
+      ExecutionMode.DIRECT, 
+      ExecutionMode.LONGTASK, 
+      ExecutionMode.FLOWTASK
+    ];
     if (!validModes.includes(step.mode)) {
       errors.push({
         path: `${path}.mode`,

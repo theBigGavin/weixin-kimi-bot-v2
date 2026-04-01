@@ -123,7 +123,7 @@ export interface TaskRequest {
   protocolVersion: typeof CAPABILITY_PROTOCOL_VERSION;
   
   /** 任务分析 */
-  analysis: TaskAnalysis;
+  analysis: ProtocolTaskAnalysis;
   
   /** 执行计划 */
   plan: ExecutionPlan;
@@ -133,9 +133,9 @@ export interface TaskRequest {
 }
 
 /**
- * 任务分析
+ * 协议层任务分析 (重命名以避免与 task-router/types.ts 冲突)
  */
-export interface TaskAnalysis {
+export interface ProtocolTaskAnalysis {
   /** 用户意图描述 */
   userIntent: string;
   /** 所需能力列表 */
