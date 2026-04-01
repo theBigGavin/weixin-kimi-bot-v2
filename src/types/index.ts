@@ -368,3 +368,29 @@ export interface Memory {
     category?: string;
   }>;
 }
+
+
+// ============================================
+// Modern Result Type (Phase 1 Refactoring)
+// ============================================
+export {
+  type Result as ModernResult,
+  type Ok,
+  type Err,
+  ok,
+  err,
+  isOk,
+  isErr,
+  map,
+  mapErr,
+  andThen,
+  unwrapOr,
+  unwrapOrElse,
+  tryCatch,
+  all,
+  partition,
+  DomainError,
+  NotFoundError,
+  ValidationError,
+  ConflictError,
+} from './result.js';
