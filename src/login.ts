@@ -28,6 +28,7 @@ import { mkdir } from 'fs/promises';
 import { writeFile } from 'fs/promises';
 import { getTemplateById, listTemplates } from './templates/definitions.js';
 import { TemplateType } from './agent/types.js';
+import { createWorkspaceManager } from './workspace/index.js';
 import { loadMasterConfig } from './config/master-config.js';
 
 // 创建 readline 接口
@@ -208,6 +209,13 @@ async function main() {
     await mkdir(agentDir, { recursive: true });
     await mkdir(contextDir, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
+    
+    // 初始化 workspace 子目录结构（PARA + tmp/cache/logs）
+    const workspaceManager = createWorkspaceManager(agent.id, workspaceDir, {
+      paraEnabled: true,
+      tmpRetentionDays: 7,
+    });
+    await workspaceManager.initialize();
     
     // 保存微信凭证到 Agent 目录
     const credentialsPath = `${agentDir}/credentials.json`;

@@ -84,8 +84,8 @@ export function buildSystemPrompt(
     parts.push('## 额外指令\n' + config.ai.customSystemPrompt.trim());
   }
 
-  // 5. 工作目录信息
-  parts.push(`## 工作目录\n${config.workspace.path}`);
+  // 5. 工作目录信息（包含 PARA 结构说明）
+  parts.push(buildWorkspaceSection(config.workspace.path));
 
   // 6. 工具权限说明
   const availableTools: string[] = [];
@@ -97,6 +97,46 @@ export function buildSystemPrompt(
   }
 
   return parts.join('\n\n');
+}
+
+/**
+ * 构建工作目录说明部分
+ * @param workspacePath Workspace 路径
+ * @returns 格式化的工作目录说明
+ */
+function buildWorkspaceSection(workspacePath: string): string {
+  const lines = [
+    '## 工作目录规范',
+    '',
+    `你的专属工作空间: ${workspacePath}`,
+    '',
+    '### 目录结构',
+    '```',
+    'workspace/',
+    '├── tmp/          - 临时文件（7天后自动清理）',
+    '├── cache/        - 缓存数据',
+    '├── logs/         - 执行日志',
+    '└── PARA/',
+    '    ├── Projects/ - 进行中的项目',
+    '    ├── Areas/    - 持续维护的领域',
+    '    ├── Resources/- 参考资料',
+    '    └── Archives/ - 已完成的项目',
+    '```',
+    '',
+    '### 使用规则',
+    '1. **临时文件**必须放在 tmp/ 目录，禁止放在根目录',
+    '2. **有价值的产出**应整理到 PARA/Projects/ 或 PARA/Areas/',
+    '3. **参考资料**放在 PARA/Resources/',
+    '4. **已完成的项目**移动到 PARA/Archives/',
+    '5. **不要在 workspace 根目录乱放文件**',
+    '',
+    '### 提示',
+    '- 执行代码生成、文件分析等任务时，临时输出放 tmp/',
+    '- 最终交付物应整理到 PARA/Projects/ 并告知用户',
+    '- 定期（每周）整理 PARA/ 目录，保持结构清晰',
+  ];
+
+  return lines.join('\n');
 }
 
 /**
