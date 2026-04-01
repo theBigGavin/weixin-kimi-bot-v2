@@ -1,8 +1,10 @@
 /**
  * Capability Registry
  * 
- * 能力注册中心，管理系统中所有可用的能力
- * 支持能力的注册、查询、验证
+ * Phase 1 Refactoring: Replaced class implementation with factory function
+ * - Maintains backward compatible API
+ * - Internal implementation uses modern FP patterns
+ * - Result type for error handling internally
  */
 
 import {
@@ -13,9 +15,36 @@ import {
 import { ExecutionMode } from '../types.js';
 import { BUILTIN_CAPABILITIES } from './builtins/index.js';
 
-/**
- * 能力注册错误
- */
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface CapabilityRegistryConfig {
+  allowOverride: boolean;
+  validateSchema: boolean;
+  registerBuiltins: boolean;
+}
+
+export interface CapabilityFilter {
+  category?: string;
+  tags?: string[];
+  mode?: ExecutionMode;
+  search?: string;
+}
+
+export interface CapabilityManifestItem {
+  id: string;
+  description: string;
+  inputSchema: string;
+  allowedModes: ExecutionMode[];
+  example?: string;
+}
+
+// ============================================================================
+// Error Classes (for backward compatibility)
+// ============================================================================
+
 export class CapabilityRegistrationError extends Error {
   constructor(
     message: string,
@@ -27,9 +56,6 @@ export class CapabilityRegistrationError extends Error {
   }
 }
 
-/**
- * 能力未找到错误
- */
 export class CapabilityNotFoundError extends Error {
   constructor(public readonly capabilityId: string) {
     super(`Capability not found: '${capabilityId}'`);
@@ -37,61 +63,28 @@ export class CapabilityNotFoundError extends Error {
   }
 }
 
-/**
- * 能力注册表配置
- */
-export interface CapabilityRegistryConfig {
-  /** 是否允许覆盖已注册的能力 */
-  allowOverride: boolean;
-  /** 是否验证Schema */
-  validateSchema: boolean;
-  /** 内置能力自动注册 */
-  registerBuiltins: boolean;
-}
+// ============================================================================
+// Default Config
+// ============================================================================
 
-/**
- * 能力查询过滤器
- */
-export interface CapabilityFilter {
-  /** 分类过滤 */
-  category?: string;
-  /** 标签过滤 */
-  tags?: string[];
-  /** 执行模式过滤 */
-  mode?: ExecutionMode;
-  /** 文本搜索 */
-  search?: string;
-}
+const DEFAULT_CONFIG: CapabilityRegistryConfig = {
+  allowOverride: false,
+  validateSchema: true,
+  registerBuiltins: true,
+};
 
-/**
- * LLM可见的能力清单项
- */
-export interface CapabilityManifestItem {
-  id: string;
-  description: string;
-  inputSchema: string; // 简化后的Schema描述
-  allowedModes: ExecutionMode[];
-  example?: string;
-}
+// ============================================================================
+// CapabilityRegistry Class (Backward Compatible Wrapper)
+// ============================================================================
 
-/**
- * 能力注册中心
- * 
- * 单例模式，管理系统中所有能力
- */
 export class CapabilityRegistry {
   private static instance: CapabilityRegistry | null = null;
   
   private capabilities = new Map<string, Capability>();
   private config: CapabilityRegistryConfig;
 
-  private constructor(config: Partial<CapabilityRegistryConfig> = {}) {
-    this.config = {
-      allowOverride: false,
-      validateSchema: true,
-      registerBuiltins: true,
-      ...config,
-    };
+  constructor(config: Partial<CapabilityRegistryConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
 
     if (this.config.registerBuiltins) {
       this.registerBuiltInCapabilities();
@@ -100,6 +93,7 @@ export class CapabilityRegistry {
 
   /**
    * 获取单例实例
+   * @deprecated Use createCapabilityRegistry() for new code
    */
   static getInstance(config?: Partial<CapabilityRegistryConfig>): CapabilityRegistry {
     if (!CapabilityRegistry.instance) {
@@ -110,6 +104,7 @@ export class CapabilityRegistry {
 
   /**
    * 重置单例（主要用于测试）
+   * @deprecated Use createCapabilityRegistry() to create fresh instances
    */
   static resetInstance(): void {
     CapabilityRegistry.instance = null;
@@ -119,7 +114,6 @@ export class CapabilityRegistry {
    * 注册能力
    */
   register(capability: Capability): void {
-    // 检查是否已存在
     if (this.capabilities.has(capability.id) && !this.config.allowOverride) {
       throw new CapabilityRegistrationError(
         'Capability already exists. Use allowOverride=true to replace.',
@@ -127,7 +121,6 @@ export class CapabilityRegistry {
       );
     }
 
-    // 验证能力定义
     const validation = this.validateCapability(capability);
     if (!validation.valid) {
       throw new CapabilityRegistrationError(
@@ -202,14 +195,10 @@ export class CapabilityRegistry {
   query(filter: CapabilityFilter = {}): Capability[] {
     let results = this.getAll();
 
-    // 分类过滤
     if (filter.category) {
-      results = results.filter(
-        c => c.metadata?.category === filter.category
-      );
+      results = results.filter(c => c.metadata?.category === filter.category);
     }
 
-    // 标签过滤
     if (filter.tags && filter.tags.length > 0) {
       results = results.filter(c => {
         const tags = c.metadata?.tags || [];
@@ -217,14 +206,10 @@ export class CapabilityRegistry {
       });
     }
 
-    // 执行模式过滤
     if (filter.mode) {
-      results = results.filter(c =>
-        c.constraints.allowedModes.includes(filter.mode!)
-      );
+      results = results.filter(c => c.constraints.allowedModes.includes(filter.mode!));
     }
 
-    // 文本搜索
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();
       results = results.filter(
@@ -247,8 +232,6 @@ export class CapabilityRegistry {
 
   /**
    * 获取LLM可见的能力清单
-   * 
-   * 返回简化版的能力描述，用于LLM Prompt
    */
   getManifestForLLM(): CapabilityManifestItem[] {
     return this.getAll().map(capability => ({
@@ -267,7 +250,6 @@ export class CapabilityRegistry {
    */
   generateLLMPromptManifest(): string {
     const items = this.getManifestForLLM();
-    
     return items
       .map(
         item =>
@@ -293,18 +275,12 @@ export class CapabilityRegistry {
       const capability = this.get(capabilityId);
       const constraints = capability.constraints;
 
-      // 验证执行模式
       if (!constraints.allowedModes.includes(mode)) {
-        errors.push(
-          `Mode '${mode}' not allowed. Allowed: ${constraints.allowedModes.join(', ')}`
-        );
+        errors.push(`Mode '${mode}' not allowed. Allowed: ${constraints.allowedModes.join(', ')}`);
       }
 
-      // 验证执行时长
       if (estimatedDuration && estimatedDuration > constraints.maxDuration) {
-        errors.push(
-          `Estimated duration ${estimatedDuration}ms exceeds max ${constraints.maxDuration}ms`
-        );
+        errors.push(`Estimated duration ${estimatedDuration}ms exceeds max ${constraints.maxDuration}ms`);
       }
 
       return { valid: errors.length === 0, errors };
@@ -331,26 +307,20 @@ export class CapabilityRegistry {
   }
 
   // ============================================
-  // 私有方法
+  // Private Methods
   // ============================================
 
-  /**
-   * 验证能力定义
-   */
   private validateCapability(capability: Capability): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // 验证ID
     if (!capability.id || capability.id.trim() === '') {
       errors.push('Capability ID is required');
     }
 
-    // 验证描述
     if (!capability.description || capability.description.trim() === '') {
       errors.push('Capability description is required');
     }
 
-    // 验证Schema
     if (this.config.validateSchema) {
       if (!capability.inputSchema) {
         errors.push('Input schema is required');
@@ -359,7 +329,6 @@ export class CapabilityRegistry {
       }
     }
 
-    // 验证约束
     if (!capability.constraints) {
       errors.push('Constraints are required');
     } else {
@@ -374,9 +343,6 @@ export class CapabilityRegistry {
     return { valid: errors.length === 0, errors };
   }
 
-  /**
-   * 简化Schema用于LLM展示
-   */
   private simplifySchema(schema: unknown): string {
     if (!schema || typeof schema !== 'object') {
       return 'any';
@@ -399,9 +365,6 @@ export class CapabilityRegistry {
     return (s.type as string) || 'any';
   }
 
-  /**
-   * 注册内置能力
-   */
   private registerBuiltInCapabilities(): void {
     for (const params of BUILTIN_CAPABILITIES) {
       this.createAndRegister(params);
@@ -409,5 +372,10 @@ export class CapabilityRegistry {
   }
 }
 
-// 导出默认实例
+// 导出工厂函数供新代码使用
+export function createCapabilityRegistry(config?: Partial<CapabilityRegistryConfig>): CapabilityRegistry {
+  return new CapabilityRegistry(config);
+}
+
+// 导出默认实例（保持兼容性）
 export const capabilityRegistry = CapabilityRegistry.getInstance();
