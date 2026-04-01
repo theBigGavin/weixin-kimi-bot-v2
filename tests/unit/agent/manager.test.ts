@@ -57,6 +57,16 @@ describe('agent/manager', () => {
       expect(saved.config.name).toBe('PersistedAgent');
     });
 
+    it('应该创建Agent工作目录', async () => {
+      const agent = await manager.createAgent({
+        name: 'WorkspaceTest',
+        wechatAccountId: 'wxid_workspace',
+      });
+
+      // 验证工作目录被创建
+      expect(existsSync(agent.config.workspace.path)).toBe(true);
+    });
+
     it('应该在名称无效时抛出错误', async () => {
       await expect(
         manager.createAgent({

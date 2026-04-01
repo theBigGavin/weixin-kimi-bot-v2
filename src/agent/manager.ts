@@ -7,6 +7,7 @@
 /** 移除 readonly 修饰符的辅助类型 */
 export type Writable<T> = { -readonly [P in keyof T]: T[P] };
 
+import { mkdir } from 'fs/promises';
 import { AgentConfig } from '../types/index.js';
 import { Store } from '../store.js';
 import {
@@ -19,6 +20,7 @@ import {
 } from './types.js';
 import { ValidationError, validateAgentConfig } from './validation.js';
 import { getTemplateById } from '../templates/definitions.js';
+import { getDefaultLogger } from '../logging/index.js';
 
 /**
  * Agent 管理器
@@ -99,6 +101,15 @@ export class AgentManager {
       memory: config.memory,
       wechat: config.wechat,
     };
+
+    // 创建工作目录（如果不存在）
+    try {
+      await mkdir(config.workspace.path, { recursive: true });
+      getDefaultLogger().debug(`[AgentManager] Created workspace directory: ${config.workspace.path}`);
+    } catch (error) {
+      getDefaultLogger().warn(`[AgentManager] Failed to create workspace directory: ${config.workspace.path}`, error);
+      // 不阻断 Agent 创建流程，但记录警告
+    }
 
     // 保存到存储
     await this.saveAgent(agent);
