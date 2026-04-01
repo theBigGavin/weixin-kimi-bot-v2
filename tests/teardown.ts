@@ -7,7 +7,6 @@
 
 import { readdir, rm, stat } from 'fs/promises';
 import { join } from 'path';
-import { getDefaultLogger } from '../src/logging/index.js';
 
 // 真实 Agent 白名单（保留这些目录）
 const PROTECTED_AGENTS = [
@@ -17,28 +16,28 @@ const PROTECTED_AGENTS = [
 
 // 测试 Agent 的特征模式
 const TEST_AGENT_PATTERNS = [
-  /Test/i,                     // 包含 Test 的目录 (TestAgent_, WorkspaceTest_等)
-  /^Agent\d+_\d+_/i,           // Agent1_1_, Agent2_2_ 等
-  /_test/i,                    // 包含 _test 的目录 (助手1_test_t8jj, 测试助手_test_xao2)
-  /_spec_/i,                   // 包含 _spec_ 的目录
-  /^AgentWithSubkeys_/i,       // AgentWithSubkeys_sub_* (子键测试)
-  /^Agent_issue\d+_/i,         // Agent_issue3_t_*, Agent_issue6_n_* (issue测试)
-  /^Agent_kimi_tes_/i,         // Agent_kimi_tes_* (kimi测试)
-  /^Agent_new_user_/i,         // Agent_new_user_* (新用户测试)
-  /^DevAgent_dev_/i,           // DevAgent_dev_* (开发测试)
-  /^FullAgent_creator_/i,      // FullAgent_creator_* (完整测试)
-  /^InviteOnlyAgent_/i,        // InviteOnlyAgent_* (邀请制测试)
-  /^MyAgent_creator_/i,        // MyAgent_creator_* (我的Agent测试)
-  /^OwnedAgent_creator_/i,     // OwnedAgent_creator_* (所有权测试)
-  /^PersistedAgent_persist_/i, // PersistedAgent_persist_* (持久化测试)
-  /^PrivateAgent_/i,           // PrivateAgent_* (私有测试)
-  /^SharedAgent_/i,            // SharedAgent_* (共享测试)
-  /^测试助手_/i,                // 测试助手_* (中文测试名)
-  /^个人助手_/i,                // 个人助手_* (个人助手测试，包括 owner 和非 owner)
-  /^共享助手_/i,                // 共享助手_* (共享助手测试)
-  /^创世助手_/i,                // 创世助手_* (创世助手测试)
-  /^助手\d*_test_/i,            // 助手1_test_*, 助手2_test_* 等
-  /^助手_a1b2c3d4_/i,           // 助手_a1b2c3d4_* (助手测试)
+  /Test/i,
+  /^Agent\d+_\d+_/i,
+  /_test/i,
+  /_spec_/i,
+  /^AgentWithSubkeys_/i,
+  /^Agent_issue\d+_/i,
+  /^Agent_kimi_tes_/i,
+  /^Agent_new_user_/i,
+  /^DevAgent_dev_/i,
+  /^FullAgent_creator_/i,
+  /^InviteOnlyAgent_/i,
+  /^MyAgent_creator_/i,
+  /^OwnedAgent_creator_/i,
+  /^PersistedAgent_persist_/i,
+  /^PrivateAgent_/i,
+  /^SharedAgent_/i,
+  /^测试助手_/i,
+  /^个人助手_/i,
+  /^共享助手_/i,
+  /^创世助手_/i,
+  /^助手\d*_test_/i,
+  /^助手_a1b2c3d4_/i,
 ];
 
 /**
@@ -96,6 +95,7 @@ async function cleanupTestAgents(): Promise<void> {
     }
 
     if (testAgents.length === 0) {
+      console.log('\n✨ 没有需要清理的测试 Agent 目录\n');
       return;
     }
 
@@ -119,7 +119,9 @@ async function cleanupTestAgents(): Promise<void> {
 
 // Vitest globalTeardown 导出
 export default async function teardown(): Promise<void> {
+  console.log('\n[globalTeardown] 开始清理测试 Agent...');
   await cleanupTestAgents();
+  console.log('[globalTeardown] 清理完成\n');
 }
 
 // 也可以直接运行（用于手动清理）
